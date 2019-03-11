@@ -11,3 +11,6 @@ Pseudo-enum/const struct:
  - Stor forbokstav, splitt med _ for mellomrom
 
 
+
+BACKUP FILSTRUKTUR
+Cab order:	[1	2	3	...	N-1	N]

@@ -33,12 +33,14 @@ func stringToNumbers(str string) []int {
     return arr
 }
 
-func Read_file(filename string) ([][]int){
+func ReadFile(filename string) ([][]int){
     matrix := make([][]int, 0)      // Init empty 2D slice
     matrixRow := make([]int, 0)     // Init empty 1D slice
 
     file, err := os.Open(filename)  // Read backupfile
-    check(err)
+    if err != nil {
+        return matrix               // Return empty array if no file
+    }
     defer file.Close()
 
     scanner := bufio.NewScanner(file)
@@ -51,9 +53,12 @@ func Read_file(filename string) ([][]int){
 }
 
 
-func Write_file(filename string, matrix [][]int){
+func WriteFile(filename string, matrix [][]int){
     file, err := os.Create(filename)
-    check(err)
+    if err != nil {
+        fmt.Println("Failed writing ", filename)
+        return
+    }
     defer file.Close()
     writer := bufio.NewWriter(file)
     defer writer.Flush()
