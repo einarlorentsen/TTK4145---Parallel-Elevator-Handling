@@ -1,5 +1,7 @@
 package main
 
+const N_FLOORS := 4
+
 // .. To traverse reverse
 import(
 	// "./elevator/elevio"
