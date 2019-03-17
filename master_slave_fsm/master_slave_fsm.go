@@ -73,7 +73,7 @@ func Init(){
     }
 
 	// Start in slave-state
-	stateChange(SLAVE, cabOrders, IP)
+	stateChange(SLAVE, cabOrders)
 
 
 }
@@ -113,11 +113,51 @@ func stateMaster(matrixMaster [][]int, cabOrders []int){
 	// if matrixMaster == empty
 	// Generate for 1 elevator
 	// then listen for slaves, goroutine
+	localIP := getLocalIP()
 	if matrixMaster == nil {
 		matrixMaster = initMatrixMaster()
 	}
 
+	for {
+		recievedMatrix := <- ch_recieve
+		if checkMaster(recievedMatrix, localIP) == SLAVE {
+			 break
+		}
 
+		// Slaves: 50ms pr message
+		// Buffer at master, check newest messages
+		// Use newest messages.
+		// If no message from slave within tick period -> It has lost connection
+
+	}
+
+	// Listen to channel ch_recieve
+		// Recieves a message
+			// Update elevator fields (not stop)
+			// OR the up/down order fields
+			// Calculate new order distribution.
+	// Update masterMatrix
+	// Logic to break master-state if master is alone and recieves from larger master
+
+	stateChange(SLAVE)
+}
+
+
+
+
+/* Check if there are other masters in the recieved matrix.
+   Lowest IP remains master.
+   Return true if remain master, false if transition to slave */
+func checkMaster(matrix [][]int, localIP int) (STATE){
+	rows := len(matrix)
+	for row := 0; row < rows; row++ {
+		if matrix[row][SLAVE_MASTER] == MASTER {
+			if matrix[row][IP] < localIP {
+				return SLAVE	// Transition to slave
+			}
+		}
+	}
+	return MASTER 				// Remain master
 }
 
 func initMatrixMaster() ([][]int){
