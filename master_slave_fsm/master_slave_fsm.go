@@ -34,7 +34,7 @@ const (
 	SLAVE_MASTER FIELD = 4
 
 	FIRST_FLOOR FIELD = 5
-	FIRST_ELEV  FIELD = 3
+	FIRST_ELEV  FIELD = 2
 
 	UP_BUTTON   FIELD = 0
 	DOWN_BUTTON FIELD = 1
@@ -46,6 +46,7 @@ const PORT_bcast = 16569
 const PORT_peers = 15647
 
 var localIP int = getLocalIP()
+var flagDisconnectedPeer bool = false
 
 func Init() {
 	var matrixMaster [][]int
@@ -93,9 +94,10 @@ func stateMaster(matrixMaster [][]int, cabOrders []int) {
 	ch_peerEnable := make(chan bool)
 	ch_transmit := make(chan [][]int)
 	ch_recieve := make(chan [][]int)
+	ch_peerDisconnected := make(chan int)
 	// ch_matrix := make(chan [][]int)
 
-	go peers.Transmitter(PORT_peers, string(IP), ch_peerEnable)
+	go peers.Transmitter(PORT_peers, string(localIP), ch_peerEnable)
 	go peers.Receiver(PORT_peers, ch_peerUpdate)
 	go bcast.Transmitter(PORT_bcast, ch_transmit)
 	go bcast.Receiver(PORT_bcast, ch_recieve)
@@ -103,9 +105,10 @@ func stateMaster(matrixMaster [][]int, cabOrders []int) {
 	// Start the update_interval ticker.
 	go tickCounter(ch_updateInterval)
 
-	// if matrixMaster == empty
-	// Generate for 1 elevator
-	// then listen for slaves, goroutine
+	// Check for DCed peers
+	go checkDisconnectedPeers(ch_peerUpdate, ch_peerDisconnected)
+
+	// If matrixMaster is empty, generate masterMatrix for 1 elevator
 	if matrixMaster == nil {
 		matrixMaster = initMatrixMaster()
 	}
@@ -116,28 +119,26 @@ func stateMaster(matrixMaster [][]int, cabOrders []int) {
 			break // Change to slave
 		}
 
+		// Check for disconnected slaves and delete them
+		if flagDisconnectedPeer == true { // Peerus deletus
+			disconnectedIP := <-ch_peerDisconnected
+			matrixMaster = deleteDisconnectedPeer(matrixMaster, disconnectedIP)
+			flagDisconnectedPeer = false
+		}
+
+		// Merge info from recievedMatrix, append if new slave
+		matrixMaster = mergeRecievedInfo(matrixMaster, recievedMatrix)
+
 		// Remove served order at current floor in recievedMatrix
 		matrixMaster = checkOrderServed(matrixMaster, recievedMatrix)
 
 		// Insert unconfirmed orders UP/DOWN into matrixMaster
 		matrixMaster = mergeUnconfirmedOrders(matrixMaster, recievedMatrix)
 
-		// Check if elevator is stopped on a floor
+		// Calculate stop
 
-		// Slaves: 50ms pr message
-		// Buffer at master, check newest messages
-		// Use newest messages.
-		// If no message from slave within tick period -> It has lost connection
-
+		// Broadcast this this
 	}
-
-	// Listen to channel ch_recieve
-	// Recieves a message
-	// Update elevator fields (not stop)
-	// OR the up/down order fields
-	// Calculate new order distribution.
-	// Update masterMatrix
-	// Logic to break master-state if master is alone and recieves from larger master
 
 	stateChange(matrixMaster, SLAVE, cabOrders)
 }
@@ -207,6 +208,50 @@ func tickCounter(ch_updateInterval chan<- int) {
 
 /* *********************************************** */
 /*               HELPER FUNCTIONS                  */
+
+/* Check for disconnected peers, pass IP as int over channel */
+func checkDisconnectedPeers(ch_peerUpdate <-chan peers.PeerUpdate, ch_peerDisconnected chan<- int) {
+	for {
+		if flagDisconnectedPeer == false {
+			peerUpdate := <-ch_peerUpdate
+			if peerUpdate.Lost != nil {
+				flagDisconnectedPeer = true
+				peerIP := file_IO.StringToNumbers(peerUpdate.Lost[0])[0]
+				ch_peerDisconnected <- peerIP
+			}
+		}
+	}
+}
+
+/* Delete peer with the corresponding IP */
+func deleteDisconnectedPeer(matrixMaster [][]int, disconnectedIP int) [][]int {
+	for row := int(FIRST_ELEV); row < len(matrixMaster); row++ {
+		if matrixMaster[row][IP] == disconnectedIP {
+			matrixMaster = append(matrixMaster[:row], matrixMaster[row+1:]...) // Delete row
+		}
+	}
+	return matrixMaster
+}
+
+/* Merge info from recievedMatrix, append if new slave */
+func mergeRecievedInfo(matrixMaster [][]int, recievedMatrix [][]int) [][]int {
+	slaveIP := recievedMatrix[UP_BUTTON][IP]
+	flagSlaveExist := false
+	for row := int(FIRST_ELEV); row < len(matrixMaster); row++ {
+		if matrixMaster[row][IP] == slaveIP {
+			matrixMaster[row][DIR] = recievedMatrix[UP_BUTTON][DIR]
+			matrixMaster[row][FLOOR] = recievedMatrix[UP_BUTTON][FLOOR]
+			matrixMaster[row][ELEV_STATE] = recievedMatrix[UP_BUTTON][ELEV_STATE]
+			flagSlaveExist = true
+		}
+	}
+	if flagSlaveExist == false {
+		newSlave := make([]int, FIRST_FLOOR+N_FLOORS)
+		copy(newSlave[0:SLAVE_MASTER+1], recievedMatrix[UP_BUTTON][0:SLAVE_MASTER+1]) // Copy not inclusive for last index
+		matrixMaster = append(matrixMaster, newSlave)
+	}
+	return matrixMaster
+}
 
 /* Removes served orders in the current floor of recievedMatrix */
 func checkOrderServed(matrixMaster [][]int, recievedMatrix [][]int) [][]int {
