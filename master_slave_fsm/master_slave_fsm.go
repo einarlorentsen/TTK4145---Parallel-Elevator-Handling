@@ -117,9 +117,11 @@ func stateMaster(matrixMaster [][]int, cabOrders []int) {
 		matrixMaster = initMatrixMaster()
 	}
 
+	// JUST FOR TESTING. DELETE AT LATER STAGE
 	ch_recieve <- matrixMaster
 
 	for {
+		fmt.Println("Waiting on 'ch_recieve'")
 		recievedMatrix := <-ch_recieve
 		if checkMaster(recievedMatrix, localIP) == SLAVE {
 			break // Change to slave
@@ -140,6 +142,9 @@ func stateMaster(matrixMaster [][]int, cabOrders []int) {
 
 		// Insert unconfirmed orders UP/DOWN into matrixMaster
 		matrixMaster = mergeUnconfirmedOrders(matrixMaster, recievedMatrix)
+
+		// Clear orders
+		matrixMaster = clearCurrentOrders(matrixMaster)
 
 		// Calculate stop
 		matrixMaster = calculateElevatorStops(matrixMaster)
@@ -291,6 +296,15 @@ func mergeUnconfirmedOrders(matrixMaster [][]int, recievedMatrix [][]int) [][]in
 /* ELEV N    |    |     |       |            |              |       | .. |        | */
 /* Matrix indexing: [ROW][COL] */
 
+/* Clear the elevators' current orders */
+func clearCurrentOrders(matrix [][]int) [][]int {
+	for floor := int(FIRST_FLOOR); floor < len(matrix[UP_BUTTON]){
+		for elev := int(FIRST_ELEV); elev < len(matrix){
+			matrix[elev][floor] = 0
+		}
+	}
+	return matrix
+}
 
 /* Order distribution algorithm */
 func calculateElevatorStops(matrix [][]int) [][]int {
