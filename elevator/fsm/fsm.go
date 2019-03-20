@@ -12,3 +12,8 @@ const (
 	DOORS_CLOSED	STATE = 5
 
 )
+
+
+func Init(){
+	// Do nothing, nothing at all
+}
