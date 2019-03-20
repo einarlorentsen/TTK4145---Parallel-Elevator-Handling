@@ -3,6 +3,7 @@ package master_slave_fsm
 import (
 	"fmt"
 	"time"
+	"os"	// For getPID
 
 	"../elevator/elevio"
 	"../elevator/fsm"
@@ -45,13 +46,17 @@ const BACKUP_FILENAME = "backup.txt"
 const PORT_bcast = 16569
 const PORT_peers = 15647
 
-var localIP int = getLocalIP()
+var localIP int
 var flagDisconnectedPeer bool = false
 
 func InitMasterSlave() {
 	fmt.Println("Initializing Master/Slave state machine...")
 	var matrixMaster [][]int
 	var initialCabOrders []int // Vector for cab orders
+
+	// localIP = getLocalIP() // ENABLE AT LAB, DOESNT WORK ELSEWHERE?
+	localIP = os.Getpid()
+	fmt.Println("This machines localIP-ID is: ", localIP)
 
 	// CHECK FOR BACKUP FILE, CAB ORDERS
 	cabOrders := file_IO.ReadFile(BACKUP_FILENAME) // Matrix
@@ -74,11 +79,13 @@ func InitMasterSlave() {
 
 /* PLACEHOLDER TITLE */
 func stateChange(matrixMaster [][]int, currentState STATE, cabOrders []int) {
-	switch currentState {
-	case MASTER:
-		stateMaster(matrixMaster, cabOrders)
-	case SLAVE:
-		stateSlave(cabOrders)
+	for {
+		switch currentState {
+		case MASTER:
+			currentState, cabOrders = stateMaster(matrixMaster, cabOrders)
+		case SLAVE:
+			currentState, cabOrders = stateSlave(cabOrders)
+		}
 	}
 }
 
@@ -91,7 +98,7 @@ func stateChange(matrixMaster [][]int, currentState STATE, cabOrders []int) {
 /* ELEV N    |    |     |       |            |              |       | .. |        | */
 /* Matrix indexing: [ROW][COL] */
 
-func stateMaster(matrixMaster [][]int, cabOrders []int) {
+func stateMaster(matrixMaster [][]int, cabOrders []int) (STATE, []int) {
 	fmt.Println("Masterstate activated.")
 	ch_updateInterval := make(chan int)
 	ch_peerUpdate := make(chan peers.PeerUpdate)
@@ -116,6 +123,7 @@ func stateMaster(matrixMaster [][]int, cabOrders []int) {
 	if matrixMaster == nil {
 		matrixMaster = initMatrixMaster()
 	}
+
 
 	// JUST FOR TESTING. DELETE AT LATER STAGE
 	ch_recieve <- matrixMaster
@@ -152,17 +160,21 @@ func stateMaster(matrixMaster [][]int, cabOrders []int) {
 		// Broadcast this this
 	}
 
-	stateChange(matrixMaster, SLAVE, cabOrders)
+	return SLAVE, cabOrders
+	// stateChange(matrixMaster, SLAVE, cabOrders)
 }
 
-func stateSlave(cabOrders []int) {
+func stateSlave(cabOrders []int) (STATE, []int){
+	fmt.Println("Initializing slave-state")
 	// var matrixSlave [][]int
+	return MASTER, cabOrders
+
 }
 
 /* Check if there are other masters in the recieved matrix.
    Lowest IP remains master.
-   Return true if remain master, false if transition to slave */
-func checkMaster(matrix [][]int, localIP int) STATE {
+   Return MASTER if remain master, SLAVE if transition to slave */
+func checkMaster(matrix [][]int, localIP int) (STATE) {
 	rows := len(matrix)
 	for row := 0; row < rows; row++ {
 		if matrix[row][SLAVE_MASTER] == int(MASTER) {
@@ -176,18 +188,27 @@ func checkMaster(matrix [][]int, localIP int) STATE {
 
 func initMatrixMaster() [][]int {
 	matrixMaster := make([][]int, 0)
-	for i := 0; i <= 2; i++ { // For 1 elevator
-		matrixMaster = append(matrixMaster, make([]int, 4+N_FLOORS))
+	for i := 0; i <= 2; i++ { // For 1 elevator, master is assumed alone
+		matrixMaster = append(matrixMaster, make([]int, 5+N_FLOORS))
 	}
 	ch_floorSensor := make(chan int)
+
+	fmt.Println(matrixMaster)
+
+	// TODO REMOVE WHEN AT LAB AND HAS HARDWARE / SIMULATOR
 	elevio.GetFloorInit(ch_floorSensor)
-
+	// ch_floorSensor <- 2 // Dummy for when elevator is not present
+	fmt.Println("UWOTM8")
 	matrixMaster[FIRST_ELEV][IP] = localIP
+	fmt.Println("Bug here?")
 	matrixMaster[FIRST_ELEV][DIR] = elevio.MD_Stop
+	fmt.Println("Bug here2?")
 	matrixMaster[FIRST_ELEV][FLOOR] = <-ch_floorSensor
+	fmt.Println("Bug here3?")
 	matrixMaster[FIRST_ELEV][ELEV_STATE] = int(fsm.IDLE)
+	fmt.Println("Bug here4?")
 	matrixMaster[FIRST_ELEV][SLAVE_MASTER] = int(MASTER)
-
+	fmt.Println("Bug here5?")
 	return matrixMaster
 }
 
