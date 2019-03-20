@@ -298,8 +298,8 @@ func mergeUnconfirmedOrders(matrixMaster [][]int, recievedMatrix [][]int) [][]in
 
 /* Clear the elevators' current orders */
 func clearCurrentOrders(matrix [][]int) [][]int {
-	for floor := int(FIRST_FLOOR); floor < len(matrix[UP_BUTTON]){
-		for elev := int(FIRST_ELEV); elev < len(matrix){
+	for floor := int(FIRST_FLOOR); floor < len(matrix[UP_BUTTON]); floor++ {
+		for elev := int(FIRST_ELEV); elev < len(matrix); elev++ {
 			matrix[elev][floor] = 0
 		}
 	}
