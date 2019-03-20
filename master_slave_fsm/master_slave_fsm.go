@@ -292,64 +292,58 @@ func calculateElevatorStops(matrix [][]int) [][]int {
 	rowLength := len(matrix[UP_BUTTON])
 	colLength := len(matrix)
 
-	for floor := int(FIRST_FLOOR); floor < rowLength; floor++ {
+	for floor := FIRST_FLOOR; floor< rowLength; floor++{
 		flagOrderSet = false
-		// Assumes elevator stops if any order at Floor
-		for elev := int(FIRST_ELEV); elev < colLength; elev++ {
-			// If in floor, give order if elevator is idle, stopped or has doors open
-			if (matrix[elev][FLOOR] == floor && (matrix[elev][STATE] == fsm.IDLE ||
-				matrix[elev][STATE] == fsm.STOP || matrix[elev][STATE] == fsm.OPEN_DOORS )) {
-					matrix[elev][floor] = 1	// Stop here
+		if( matrix[UP_BUTTON][floor] == 1 || matrix[DOWN_BUTTON][floor] == 1){
+
+			//Sjekker om jeg har en heis i etasjen
+			for elev := int(FIRST_ELEV); elev < colLength; elev++ {
+				// If in floor, give order if elevator is idle, stopped or has doors open
+				if (matrixMaster[elev][FLOOR] == floor && (matrixMaster[elev][STATE] == fsm.IDLE ||
+					matrixMaster[elev][STATE] == fsm.STOP || matrixMaster[elev][STATE] == fsm.OPEN_DOORS )) {
+					matrixMaster[elev][floor] = 1	// Stop here
 					flagOrderSet = true
 					break
+				}
 			}
-		}
 
-		if flagOrderSet == false && matrix[elev][UP_BUTTON] == 1 && matrix[elev][DOWN_BUTTON]{
-			for index := 1 ; index < N_FLOORS ; index ++{
-				for elev := int(FIRST_ELEV); elev < colLength; elev++ {
-					// Both direction buttons set
-					aboveFloor := floor + index
-					belowFloor := floor - index
+			if(flagOrderSet == false && matrix[UP_BUTTON][floor] == 1 && matrix[DOWN_BUTTON][floor] == 1){
+				index := 1
 
-					// UP button set
+				for{
 
-					// Down button set
+					for elev := FIRST_ELEV; elev < colLength; elev++{
+
+						//Sjekker under meg, som har retning opp innenfor grense
+						if(flagOrderSet == false && (matrix[elev][FLOOR] == (floor-FIRST_FLOOR-index)) && (matrix[elev][DIR] == elevio.MD_Up || matrix[elev][DIR] == elevio.MD_Stop) && (floor-index >= FIRST_FLOOR)){
+							matrix[elev][floor] = 1
+							flagOrderSet = true
+							break
+						}
+
+						//Sjekk over meg, som har retning ned og innenfor grensa
+						if(flagOrderSet == false && (matrix[elev][FLOOR] == (floor-FIRST_FLOOR+index)) && (matrix[elev][DIR] == elevio.MD_Down || matrix[elev][DIR] == elevio.MD_Stop) && (floor+index <= FIRST_FLOOR+ N_FLOORS)){
+							matrix[elev][floor] = 1
+							flagOrderSet = true
+							break
+						}
+
+
+					}
+					//Gått igjennom alle heisene
+					index++
+
+					//Hvis ordre gitt eller utenfor bounds UTEN å ha funnet kandidat
+					if(flagOrderSet == true || ((floor-index) < FIRST_FLOOR) && (floor+index > (FIRST_FLOOR + N_FLOORS))){
+						break
+					}
 
 				}
 			}
-		}
 
-
-
-
-
-
-
-		// if (matrixMaster[UP_BUTTON][floor] || matrixMaster[UP_BUTTON][floor]) {
-		// 	for elev := int(FIRST_ELEV); elev < colLength; elev++ {
-		// 		// If in floor, give order if elevator is idle, stopped or has doors open
-		// 		if (matrixMaster[elev][FLOOR] == floor && (matrixMaster[elev][STATE] == fsm.IDLE ||
-		// 			matrixMaster[elev][STATE] == fsm.STOP || matrixMaster[elev][STATE] == fsm.OPEN_DOORS )) {
-		// 				matrixMaster[elev][floor] = 1	// Stop here
-		// 		}
-		// 	}
-		// 	for index := 1 ; index < N_FLOORS ; index++{
-		// 		for elev := int(FIRST_ELEV); elev < colLength; elev++ {
-		// 			aboveFloor := floor + index
-		// 			belowFloor := floor - index
-		// 			if (matrixMaster[elev][FLOOR] == aboveFloor && matrixMaster[elev][FLOOR] == elevio.MD_DOWN){
-		// 				//Give order
-		// 			}
-		// 			else (matrixMaster[elev][FLOOR] == belowFloor && matrixMaster[elev][FLOOR] == elevio.MD_UP)
-		// 		}
-		// 	}
-
-
-				// else iterate: floor+1
-				// check for elevators down to floor or idle
-				// else iterate: floor-1
-				// check for elevators up to floor or idle
 		}
 	}
+
+
+
 }
