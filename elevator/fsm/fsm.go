@@ -4,7 +4,11 @@ package fsm
 type STATE int
 
 const (
-	INIT  STATE = 0
-	READY STATE = 1
-	STOP  STATE = 2
+	INIT  				STATE = 0
+	IDLE	 				STATE = 1
+	MOVE 					STATE = 2
+	STOP  				STATE = 3
+	DOORS_OPEN		STATE = 4
+	DOORS_CLOSED	STATE = 5
+
 )
