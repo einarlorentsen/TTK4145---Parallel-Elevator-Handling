@@ -2,6 +2,7 @@ package user_interface
 
 import(
 	"./elevio"
+	"../file_IO"
 )
 
 
@@ -19,4 +20,17 @@ func CurrentFloorLight(floor int){
 
 
 /* */
-func
+func InitElevator(){
+
+
+	cabOrders := file_IO.ReadFile(BACKUP_FILENAME) // Matrix
+	if len(cabOrders) == 0 {
+		fmt.Println("No backups found.")
+	} else {
+		fmt.Println("Backup found.")
+		initialCabOrders = cabOrders[0]
+	}
+
+
+
+}

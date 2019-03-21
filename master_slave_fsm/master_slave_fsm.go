@@ -39,6 +39,7 @@ const (
 
 	UP_BUTTON   FIELD = 0
 	DOWN_BUTTON FIELD = 1
+	CAB 				FIELD = 2
 )
 
 const UPDATE_INTERVAL = 250 // Tick time in milliseconds
@@ -49,29 +50,20 @@ const PORT_peers = 15647
 
 var localIP int
 var flagDisconnectedPeer bool = false
+var flagMasterSlave STATE
 
 func InitMasterSlave() {
 	fmt.Println("Initializing Master/Slave state machine...")
 	var matrixMaster [][]int
-	var initialCabOrders []int // Vector for cab orders
 
 	// localIP = getLocalIP() // ENABLE AT LAB, DOESNT WORK ELSEWHERE?
 	localIP = os.Getpid()
 	fmt.Println("This machines localIP-ID is: ", localIP)
 
-	// CHECK FOR BACKUP FILE, CAB ORDERS
-	cabOrders := file_IO.ReadFile(BACKUP_FILENAME) // Matrix
-	if len(cabOrders) == 0 {
-		fmt.Println("No backups found.")
-	} else {
-		fmt.Println("Backup found.")
-		initialCabOrders = cabOrders[0]
-	}
-
 	fmt.Println("Master/Slave state machine initialized.")
 
 	// Start in slave-state
-	stateChange(matrixMaster, SLAVE, initialCabOrders)
+	stateChange(matrixMaster, SLAVE)
 
 }
 
@@ -79,13 +71,13 @@ func InitMasterSlave() {
 // Slave state
 
 /* PLACEHOLDER TITLE */
-func stateChange(matrixMaster [][]int, currentState STATE, cabOrders []int) {
+func stateChange(matrixMaster [][]int, currentState STATE) {
 	for {
 		switch currentState {
 		case MASTER:
-			currentState, cabOrders = stateMaster(matrixMaster, cabOrders)
+			currentState = stateMaster(matrixMaster)
 		case SLAVE:
-			currentState, cabOrders = stateSlave(cabOrders)
+			currentState = stateSlave()
 		}
 	}
 }
@@ -99,15 +91,16 @@ func stateChange(matrixMaster [][]int, currentState STATE, cabOrders []int) {
 /* ELEV N    |    |     |       |            |              |       | .. |        | */
 /* Matrix indexing: [ROW][COL] */
 
-func stateMaster(matrixMaster [][]int, cabOrders []int) (STATE, []int) {
+func stateMaster(matrixMaster [][]int) (STATE) {
+	flagMasterSlave = MASTER
 	fmt.Println("Masterstate activated.")
 	ch_updateInterval := make(chan int)
 	ch_peerUpdate := make(chan peers.PeerUpdate)
 	ch_peerEnable := make(chan bool)
 	ch_transmit := make(chan [][]int)
 	ch_recieve := make(chan [][]int)
-	ch_slaveTransmit := make(chan [][]int)
-	ch_slaveRecieve := make(chan [][]int)
+	ch_transmitSlave := make(chan [][]int)
+	ch_recieveSlave := make(chan [][]int)
 	ch_peerDisconnected := make(chan int)
 	ch_repeatedBcast := make(chan [][]int)
 	// ch_matrix := make(chan [][]int)
@@ -118,8 +111,8 @@ func stateMaster(matrixMaster [][]int, cabOrders []int) (STATE, []int) {
 	go bcast.Receiver(PORT_bcast, ch_recieve)
 
 	// Spawn transmitter/reciever for slave-information
-	go bcast.Transmitter(PORT_slaveBcast, ch_slaveTransmit)
-	go bcast.Receiver(PORT_slaveBcast, ch_slaveRecieve)
+	go bcast.Transmitter(PORT_slaveBcast, ch_transmitSlave)
+	go bcast.Receiver(PORT_slaveBcast, ch_recieveSlave)
 
 	go repeatedBroadcast(ch_repeatedBcast, ch_updateInterval, ch_transmit)
 
@@ -139,8 +132,8 @@ func stateMaster(matrixMaster [][]int, cabOrders []int) (STATE, []int) {
 	// ch_recieve <- matrixMaster
 
 	for {
-		fmt.Println("Waiting on 'ch_recieve'")
-		recievedMatrix := <-ch_recieve
+		fmt.Println("Waiting on 'ch_recieveSlave'")
+		recievedMatrix := <-ch_recieveSlave
 		if checkMaster(recievedMatrix, localIP) == SLAVE {
 			break // Change to slave
 		}
@@ -171,15 +164,16 @@ func stateMaster(matrixMaster [][]int, cabOrders []int) (STATE, []int) {
 		ch_repeatedBcast <- matrixMaster
 	}
 
-	return SLAVE, cabOrders
+	return SLAVE
 	// stateChange(matrixMaster, SLAVE, cabOrders)
 }
 
 
-func stateSlave(cabOrders []int) (STATE, []int){
+func stateSlave() (STATE){
+	flagMasterSlave = SLAVE
 	fmt.Println("Initializing slave-state")
 	// var matrixSlave [][]int
-	return MASTER, cabOrders
+	return MASTER
 
 }
 
@@ -454,8 +448,6 @@ func calculateElevatorStops(matrix [][]int) [][]int {
 	fmt.Println("SHIIIET")
 	return matrix
 } // End floor loop
-
-
 
 
 /*Broadcasts last item over ch_repeatedBcast */
