@@ -106,12 +106,14 @@ func stateMaster(matrixMaster [][]int, cabOrders []int) (STATE, []int) {
 	ch_transmit := make(chan [][]int)
 	ch_recieve := make(chan [][]int)
 	ch_peerDisconnected := make(chan int)
+	ch_repeatedBcast := make(chan [][]int)
 	// ch_matrix := make(chan [][]int)
 
 	go peers.Transmitter(PORT_peers, string(localIP), ch_peerEnable)
 	go peers.Receiver(PORT_peers, ch_peerUpdate)
 	go bcast.Transmitter(PORT_bcast, ch_transmit)
 	go bcast.Receiver(PORT_bcast, ch_recieve)
+	go repeatedBroadcast(ch_repeatedBcast, ch_updateInterval, ch_transmit)
 
 	// Start the update_interval ticker.
 	go tickCounter(ch_updateInterval)
@@ -126,7 +128,7 @@ func stateMaster(matrixMaster [][]int, cabOrders []int) (STATE, []int) {
 
 
 	// JUST FOR TESTING. DELETE AT LATER STAGE
-	ch_recieve <- matrixMaster
+	// ch_recieve <- matrixMaster
 
 	for {
 		fmt.Println("Waiting on 'ch_recieve'")
@@ -157,12 +159,16 @@ func stateMaster(matrixMaster [][]int, cabOrders []int) (STATE, []int) {
 		// Calculate stop
 		matrixMaster = calculateElevatorStops(matrixMaster)
 
-		// Broadcast this this
+		// Broadcast the whole
+		ch_repeatedBcast <- matrixMaster
 	}
 
 	return SLAVE, cabOrders
 	// stateChange(matrixMaster, SLAVE, cabOrders)
 }
+
+
+
 
 func stateSlave(cabOrders []int) (STATE, []int){
 	fmt.Println("Initializing slave-state")
@@ -289,7 +295,7 @@ func mergeRecievedInfo(matrixMaster [][]int, recievedMatrix [][]int) [][]int {
 /* Removes served orders in the current floor of recievedMatrix */
 func checkOrderServed(matrixMaster [][]int, recievedMatrix [][]int) [][]int {
 	currentFloor := recievedMatrix[UP_BUTTON][FLOOR]
-	if recievedMatrix[UP_BUTTON][ELEV_STATE] == int(fsm.STOP) {
+	if recievedMatrix[UP_BUTTON][ELEV_STATE] == (int(fsm.STOP) || int(fsm.DOORS_OPEN)) {
 		matrixMaster[UP_BUTTON][int(FIRST_FLOOR)+currentFloor-1] = 0
 		matrixMaster[DOWN_BUTTON][int(FIRST_FLOOR)+currentFloor-1] = 0
 	}
@@ -441,4 +447,22 @@ func calculateElevatorStops(matrix [][]int) [][]int {
 	}	// End inf loop
 	fmt.Println("SHIIIET")
 	return matrix
-} // End floor loop
+} // End floor loop 
+
+
+
+
+/*Broadcasts last item over ch_repeatedBcast */
+func repeatedBroadcast(ch_repeatedBcast <-chan [][]int, ch_updateInterval <-chan int, ch_transmit chan [][]int){
+	var matrix [][]int
+	matrix = <- ch_repeatedBcast
+	for {
+		select {
+		case msg := <- ch_repeatedBcast:
+			matrix = msg
+		default:
+			<- ch_updateInterval
+		}
+		ch_transmit <- matrix
+	}
+}
