@@ -44,6 +44,7 @@ const (
 const UPDATE_INTERVAL = 250 // Tick time in milliseconds
 const BACKUP_FILENAME = "backup.txt"
 const PORT_bcast = 16569
+const PORT_slaveBcast = 16570
 const PORT_peers = 15647
 
 var localIP int
@@ -105,6 +106,8 @@ func stateMaster(matrixMaster [][]int, cabOrders []int) (STATE, []int) {
 	ch_peerEnable := make(chan bool)
 	ch_transmit := make(chan [][]int)
 	ch_recieve := make(chan [][]int)
+	ch_slaveTransmit := make(chan [][]int)
+	ch_slaveRecieve := make(chan [][]int)
 	ch_peerDisconnected := make(chan int)
 	ch_repeatedBcast := make(chan [][]int)
 	// ch_matrix := make(chan [][]int)
@@ -113,6 +116,11 @@ func stateMaster(matrixMaster [][]int, cabOrders []int) (STATE, []int) {
 	go peers.Receiver(PORT_peers, ch_peerUpdate)
 	go bcast.Transmitter(PORT_bcast, ch_transmit)
 	go bcast.Receiver(PORT_bcast, ch_recieve)
+
+	// Spawn transmitter/reciever for slave-information
+	go bcast.Transmitter(PORT_slaveBcast, ch_slaveTransmit)
+	go bcast.Receiver(PORT_slaveBcast, ch_slaveRecieve)
+
 	go repeatedBroadcast(ch_repeatedBcast, ch_updateInterval, ch_transmit)
 
 	// Start the update_interval ticker.
@@ -166,8 +174,6 @@ func stateMaster(matrixMaster [][]int, cabOrders []int) (STATE, []int) {
 	return SLAVE, cabOrders
 	// stateChange(matrixMaster, SLAVE, cabOrders)
 }
-
-
 
 
 func stateSlave(cabOrders []int) (STATE, []int){
@@ -447,7 +453,7 @@ func calculateElevatorStops(matrix [][]int) [][]int {
 	}	// End inf loop
 	fmt.Println("SHIIIET")
 	return matrix
-} // End floor loop 
+} // End floor loop
 
 
 
