@@ -9,7 +9,7 @@ import (
 	"fmt"
 )
 
-func main(){
+func main() {
 	fmt.Println("Main program started...")
 	// ch_quit_program := make(chan bool)
 	// fsm.Init() // Goto closest Floor
