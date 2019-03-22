@@ -181,7 +181,7 @@ func stateSlave(ch_recieve <-chan [][]int) STATE {
 	ch_slaveAlone := make(chan bool)
 	ch_killTimer := make(chan bool)
 	flagSlaveAlone := true // Assumes slave to be alone
-	fmt.Println("Initializing slave-state")
+	fmt.Println("Slave-state initialized")
 
 	for {
 		if flagSlaveAlone == true {
@@ -193,6 +193,7 @@ func stateSlave(ch_recieve <-chan [][]int) STATE {
 			flagSlaveAlone = true // Reset timer-flag
 			ch_killTimer <- true  // Kill timer
 		case <-ch_slaveAlone:
+			fmt.Println("SLAVE ID ", localIP, "is transitioning to MASTER")
 			return MASTER
 		default:
 			// Do nothing
@@ -319,7 +320,7 @@ func checkDisconnectedPeers(ch_peerUpdate <-chan peers.PeerUpdate, ch_peerDiscon
 	for {
 		if flagDisconnectedPeer == false {
 			peerUpdate := <-ch_peerUpdate
-			if peerUpdate.Lost != nil {
+			if len(peerUpdate.Lost) > 0 { // A peer has DC'ed
 				flagDisconnectedPeer = true
 				peerIP := file_IO.StringToNumbers(peerUpdate.Lost[0])[0]
 				ch_peerDisconnected <- peerIP
