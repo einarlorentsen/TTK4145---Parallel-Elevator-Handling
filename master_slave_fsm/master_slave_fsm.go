@@ -58,6 +58,7 @@ func InitMasterSlave() {
 
 	// localIP = getLocalIP() // ENABLE AT LAB, DOESNT WORK ELSEWHERE?
 	localIP = os.Getpid()
+	fullLocalIP, _ := localip.LocalIP() // CURRENTLY PASSED TO PEERS TRANSMITTER. UNSURE
 	fmt.Println("This machines localIP-ID is: ", localIP)
 
 	ch_elevTransmit := make(chan [][]int) // Elevator transmission, FROM elevator
@@ -76,7 +77,8 @@ func InitMasterSlave() {
 	// Communicates with the local elevator
 	go localOrderHandler(ch_recieve, ch_transmitSlave, ch_elevRecieve, ch_elevTransmit)
 
-	go peers.Transmitter(PORT_peers, string(localIP), ch_peerEnable)
+	// go peers.Transmitter(PORT_peers, string(localIP), ch_peerEnable)
+	go peers.Transmitter(PORT_peers, fullLocalIP, ch_peerEnable)
 	go peers.Receiver(PORT_peers, ch_peerUpdate)
 
 	// Spawn transmission/reciever goroutines.
@@ -334,6 +336,49 @@ func checkDisconnectedPeers(ch_peerUpdate <-chan peers.PeerUpdate, ch_peerDiscon
 		}
 	}
 }
+
+// ALTERNATIVE? The information sent over peerUpdate.Lost doesnt make sense..
+// It also crashes when something disconnects. WIP function below.
+// func checkDisconnectedPeers(ch_peerUpdate <-chan peers.PeerUpdate, ch_peerDisconnected chan<- int) {
+// 	for {
+// 		if flagDisconnectedPeer == false {
+// 			peerUpdate := <-ch_peerUpdate
+// 			peerUpdateLost := peerUpdate.Lost
+// 			fmt.Println("Lost peer-array: ")
+// 			fmt.Println(peerUpdateLost)
+// 			if len(peerUpdate.Lost) >= 1 { // A peer has DC'ed
+// 				flagDisconnectedPeer = true
+//
+// 				if len(peerUpdate.Lost) >= 1 {
+// 					flagDisconnectedPeer = true
+// 					fmt.Println("Lost peers: ", peerUpdate.Lost[0])
+// 					peerReturnedIP := splitAtPeriodReturnLastItem(peerUpdate.Lost[0])
+// 					// peerReturnedIP := file_IO.StringToNumbers(peerUpdate.Lost[0])
+// 					fmt.Println("peerReturnedIP: ", peerReturnedIP)
+// 					ch_peerDisconnected <- peerReturnedIP
+// 				}
+//
+// 				// // Split at period, take the last IP-field.
+// 				// s := strings.Split(peerUpdate.Lost[0], ".")
+// 				// fmt.Println(s)
+// 				// peerIP, err := strconv.Atoi(s[len(s)-1])
+// 				// if err == nil {
+// 				// 	ch_peerDisconnected <- peerIP
+// 				// } else {
+// 				// 	fmt.Println("Error reading disconnected peer.")
+// 				// }
+// 				// ch_peerDisconnected <- peerIP
+// 				// fmt.Println("Sent ", peerIP, " over ch_peerDisconnected.")
+// 				// // peerIP := file_IO.StringToNumbers(peerUpdate.Lost[0])[0]
+// 			}
+// 		}
+// 	}
+// }
+// func splitAtPeriodReturnLastItem(str string) int {
+// 	s := strings.Split(str, ".")
+// 	sInt, _ := strconv.Atoi(s[len(s)-1])
+// 	return sInt
+// }
 
 /* Delete peer with the corresponding IP */
 func deleteDisconnectedPeer(matrixMaster [][]int, disconnectedIP int) [][]int {
