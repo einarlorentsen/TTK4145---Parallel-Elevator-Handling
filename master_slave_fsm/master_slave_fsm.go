@@ -84,9 +84,12 @@ func InitMasterSlave() {
 	go bcast.Receiver(PORT_bcast, ch_recieve)
 	go bcast.Transmitter(PORT_slaveBcast, ch_transmitSlave)
 	go bcast.Receiver(PORT_slaveBcast, ch_recieveSlave)
-	go repeatedBroadcast(ch_repeatedBcast, ch_updateInterval, ch_transmit)
-	// Start the update_interval ticker.
 
+	// Start this one in master and slave state, kill the goroutine in between state change?
+	// Must be able to use different channels depending on master or slave.
+	// Or just pass all channels, and use a for-switch loop depending on master/slave
+	go repeatedBroadcast(ch_repeatedBcast, ch_updateInterval, ch_transmit, ch_transmitSlave)
+	// Start the update_interval ticker.
 	go tickCounter(ch_updateInterval)
 
 	// Check for DCed peers
@@ -131,6 +134,8 @@ func stateMaster(matrixMaster [][]int, ch_recieve <-chan [][]int, ch_recieveSlav
 	if matrixMaster == nil {
 		matrixMaster = initMatrixMaster()
 	}
+	ch_repeatedBcast <- matrixMaster // Start the correct masterMatrix UDP broadcast
+
 	// JUST FOR TESTING. DELETE AT LATER STAGE
 	// ch_recieve <- matrixMaster
 	for {
@@ -145,6 +150,7 @@ func stateMaster(matrixMaster [][]int, ch_recieve <-chan [][]int, ch_recieveSlav
 
 		fmt.Println("Waiting on 'ch_recieveSlave'")
 		recievedMatrix := <-ch_recieveSlave
+		fmt.Println("Recieved on 'ch_recieveSlave'")
 
 		// Check for disconnected slaves and delete them
 		if flagDisconnectedPeer == true { // Peerus deletus
@@ -264,19 +270,19 @@ func initMatrixMaster() [][]int {
 	for i := 0; i <= 2; i++ { // For 1 elevator, master is assumed alone
 		matrixMaster = append(matrixMaster, make([]int, 5+N_FLOORS))
 	}
-	ch_floorSensor := make(chan int)
+	// ch_floorSensor := make(chan int)
 
 	fmt.Println(matrixMaster)
 
 	// TODO REMOVE WHEN AT LAB AND HAS HARDWARE / SIMULATOR
-	elevio.GetFloorInit(ch_floorSensor)
-	// ch_floorSensor <- 2 // Dummy for when elevator is not present
+	// elevio.GetFloorInit(ch_floorSensor)
+	//ch_floorSensor <- 2 // Dummy for when elevator is not present
 	fmt.Println("UWOTM8")
 	matrixMaster[FIRST_ELEV][IP] = localIP
 	fmt.Println("Bug here?")
 	matrixMaster[FIRST_ELEV][DIR] = elevio.MD_Stop
 	fmt.Println("Bug here2?")
-	matrixMaster[FIRST_ELEV][FLOOR] = <-ch_floorSensor
+	matrixMaster[FIRST_ELEV][FLOOR] = 2 //<-ch_floorSensor
 	fmt.Println("Bug here3?")
 	matrixMaster[FIRST_ELEV][ELEV_STATE] = int(fsm.IDLE)
 	fmt.Println("Bug here4?")
@@ -526,17 +532,28 @@ func calculateElevatorStops(matrix [][]int) [][]int {
 } // End floor loop
 
 /*Broadcasts last item over ch_repeatedBcast */
-func repeatedBroadcast(ch_repeatedBcast <-chan [][]int, ch_updateInterval <-chan int, ch_transmit chan [][]int) {
+func repeatedBroadcast(ch_repeatedBcast <-chan [][]int, ch_updateInterval <-chan int, ch_transmit chan<- [][]int, ch_transmitSlave chan<- [][]int) {
 	var matrix [][]int
+	fmt.Println("repeatedBroadcast: Waiting on ch_repeatedBcast...")
 	matrix = <-ch_repeatedBcast
+	fmt.Println("repeatedBroadcast: Recieved over ch_repeatedBcast: ", matrix)
 	for {
 		select {
 		case msg := <-ch_repeatedBcast:
+			fmt.Println("repeatedBroadcast: Recieved matrix over ch_repeatedBcast")
+			fmt.Println(msg)
 			matrix = msg
 		default:
 			// Empty
 		}
-		<-ch_updateInterval
-		ch_transmit <- matrix
+		<-ch_updateInterval      // Send over channel once each UPDATE_INTERVAL
+		switch flagMasterSlave { // Send over channel dependent on MASTER/SLAVE state
+		case MASTER:
+			ch_transmit <- matrix
+			// fmt.Println("repeatedBroadcast: Sent matrix over ch_transmit (MASTER)")
+		case SLAVE:
+			ch_transmitSlave <- matrix
+			// fmt.Println("repeatedBroadcast: Sent matrix over ch_transmitSlave (SLAVE)")
+		}
 	}
 }
