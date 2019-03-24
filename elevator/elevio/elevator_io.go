@@ -1,12 +1,11 @@
 package elevio
 
-import(
-	"time"
-	"sync"
-	"net"
+import (
 	"fmt"
+	"net"
+	"sync"
+	"time"
 )
-
 
 const _pollRate = 20 * time.Millisecond
 
@@ -16,6 +15,7 @@ var _mtx sync.Mutex
 var _conn net.Conn
 
 type MotorDirection int
+
 const (
 	MD_Up   MotorDirection = 1
 	MD_Down                = -1
@@ -23,6 +23,7 @@ const (
 )
 
 type ButtonType int
+
 const (
 	BT_HallUp   ButtonType = 0
 	BT_HallDown            = 1
@@ -33,11 +34,6 @@ type ButtonEvent struct {
 	Floor  int
 	Button ButtonType
 }
-
-
-
-
-
 
 func Init(addr string, numFloors int) {
 	if _initialized {
@@ -53,8 +49,6 @@ func Init(addr string, numFloors int) {
 	}
 	_initialized = true
 }
-
-
 
 func SetMotorDirection(dir MotorDirection) {
 	_mtx.Lock()
@@ -86,8 +80,6 @@ func SetDoorOpenLamp(value bool) {
 // 	_conn.Write([]byte{5, toByte(value), 0, 0})
 // }
 
-
-
 func PollButtons(receiver chan<- ButtonEvent) {
 	prev := make([][3]bool, _numFloors)
 	for {
@@ -116,9 +108,9 @@ func PollFloorSensor(receiver chan<- int) {
 	}
 }
 
-func GetFloorInit(receiver chan<- int) { 
+func GetFloorInit(receiver chan<- int) {
 	receiver <- getFloor()
-} 
+}
 
 // func PollStopButton(receiver chan<- bool) {
 // 	prev := false
@@ -143,12 +135,6 @@ func GetFloorInit(receiver chan<- int) {
 // 		prev = v
 // 	}
 // }
-
-
-
-
-
-
 
 func getButton(button ButtonType, floor int) bool {
 	_mtx.Lock()

@@ -2,6 +2,9 @@ package master_slave_fsm
 
 import (
 	"fmt"
+	"os"
+	"strconv"
+	"strings"
 	// "os" // For getPID
 	"time"
 
@@ -56,11 +59,11 @@ func InitMasterSlave() {
 	fmt.Println("Initializing Master/Slave state machine...")
 	var matrixMaster [][]int
 
-	localIP = getLocalIP() // ENABLE AT LAB, DOESNT WORK ELSEWHERE?
-	// localIP = os.Getpid()
-	fullLocalIP, _ := localip.LocalIP() // CURRENTLY PASSED TO PEERS TRANSMITTER. UNSURE
+	// localIP = getLocalIP() // ENABLE AT LAB, DOESNT WORK ELSEWHERE?
+	localIP = os.Getpid()
+	// fullLocalIP, _ := localip.LocalIP() // CURRENTLY PASSED TO PEERS TRANSMITTER. UNSURE
 	fmt.Println("This machines localIP-ID is: ", localIP)
-	fmt.Println("This machines fullLocalIP-ID is: ", fullLocalIP)
+	// fmt.Println("This machines fullLocalIP-ID is: ", fullLocalIP)
 
 	ch_elevTransmit := make(chan [][]int) // Elevator transmission, FROM elevator
 	ch_elevRecieve := make(chan [][]int)  // Elevator reciever,	TO elevator
@@ -68,18 +71,20 @@ func InitMasterSlave() {
 	ch_updateInterval := make(chan int) // Periodic update-ticks
 	ch_peerUpdate := make(chan peers.PeerUpdate)
 	ch_peerEnable := make(chan bool)
-	ch_transmit := make(chan [][]int)      // Master matrix transmission
-	ch_recieve := make(chan [][]int)       // Master matrix reciever
-	ch_transmitSlave := make(chan [][]int) // Slave matrix transmission
-	ch_recieveSlave := make(chan [][]int)  // Slave matrix reciever
+	ch_transmit := make(chan [][]int)          // Master matrix transmission
+	ch_recieve := make(chan [][]int)           // Master matrix reciever
+	ch_transmitSlave := make(chan [][]int)     // Slave matrix transmission
+	ch_recieveSlave := make(chan [][]int)      // Slave matrix reciever
+	ch_recieveLocal := make(chan [][]int)      // Local master matrix transfer
+	ch_recieveSlaveLocal := make(chan [][]int) // Local slave matrix transfer
 	ch_peerDisconnected := make(chan int)
 	ch_repeatedBcast := make(chan [][]int)
 
 	// Communicates with the local elevator
-	go localOrderHandler(ch_recieve, ch_transmitSlave, ch_elevRecieve, ch_elevTransmit)
+	go localOrderHandler(ch_recieveLocal, ch_transmitSlave, ch_elevRecieve, ch_elevTransmit, ch_recieveSlaveLocal)
 
-	// go peers.Transmitter(PORT_peers, string(localIP), ch_peerEnable)
-	go peers.Transmitter(PORT_peers, fullLocalIP, ch_peerEnable)
+	go peers.Transmitter(PORT_peers, string(localIP), ch_peerEnable)
+	// go peers.Transmitter(PORT_peers, fullLocalIP, ch_peerEnable)
 	go peers.Receiver(PORT_peers, ch_peerUpdate)
 
 	// Spawn transmission/reciever goroutines.
@@ -100,22 +105,35 @@ func InitMasterSlave() {
 
 	fmt.Println("Master/Slave state machine initialized.")
 
-	// Start in slave-state
-	stateChange(matrixMaster, SLAVE, ch_recieve, ch_recieveSlave, ch_peerDisconnected, ch_repeatedBcast)
+	// Delete me, just an elevator listener, doesn't do shit.
+	go elevListen(ch_elevTransmit, ch_elevRecieve)
 
+	// Start in slave-state
+	stateChange(matrixMaster, SLAVE, ch_recieve, ch_recieveSlave, ch_peerDisconnected, ch_repeatedBcast, ch_recieveLocal, ch_recieveSlaveLocal)
+}
+
+func elevListen(ch_elevTransmit <-chan [][]int, ch_elevRecieve <-chan [][]int) {
+	for {
+		select {
+		case <-ch_elevTransmit:
+			// fmt.Println("elevListen: ch_elevTransmit")
+		case <-ch_elevRecieve:
+			// fmt.Println("elevListen: ch_elevRecieve")
+		}
+	}
 }
 
 // init UDP
 // Slave state
 
 /* PLACEHOLDER TITLE */
-func stateChange(matrixMaster [][]int, currentState STATE, ch_recieve <-chan [][]int, ch_recieveSlave <-chan [][]int, ch_peerDisconnected <-chan int, ch_repeatedBcast chan<- [][]int) {
+func stateChange(matrixMaster [][]int, currentState STATE, ch_recieve <-chan [][]int, ch_recieveSlave <-chan [][]int, ch_peerDisconnected <-chan int, ch_repeatedBcast chan<- [][]int, ch_recieveLocal chan<- [][]int, ch_recieveSlaveLocal <-chan [][]int) {
 	for {
 		switch currentState {
 		case MASTER:
-			currentState = stateMaster(matrixMaster, ch_recieve, ch_recieveSlave, ch_peerDisconnected, ch_repeatedBcast)
+			currentState = stateMaster(matrixMaster, ch_recieve, ch_recieveSlave, ch_peerDisconnected, ch_repeatedBcast, ch_recieveLocal)
 		case SLAVE:
-			currentState = stateSlave(ch_recieve)
+			currentState = stateSlave(ch_recieve, ch_repeatedBcast, ch_recieveLocal, ch_recieveSlaveLocal)
 		}
 	}
 }
@@ -129,7 +147,7 @@ func stateChange(matrixMaster [][]int, currentState STATE, ch_recieve <-chan [][
 /* ELEV N    |    |     |       |            |              |       | .. |        | */
 /* Matrix indexing: [ROW][COL] */
 
-func stateMaster(matrixMaster [][]int, ch_recieve <-chan [][]int, ch_recieveSlave <-chan [][]int, ch_peerDisconnected <-chan int, ch_repeatedBcast chan<- [][]int) STATE {
+func stateMaster(matrixMaster [][]int, ch_recieve <-chan [][]int, ch_recieveSlave <-chan [][]int, ch_peerDisconnected <-chan int, ch_repeatedBcast chan<- [][]int, ch_recieveLocal chan<- [][]int) STATE {
 	flagMasterSlave = MASTER
 	fmt.Println("Masterstate activated.")
 
@@ -141,71 +159,82 @@ func stateMaster(matrixMaster [][]int, ch_recieve <-chan [][]int, ch_recieveSlav
 
 	// JUST FOR TESTING. DELETE AT LATER STAGE
 	// ch_recieve <- matrixMaster
+	fmt.Println("Right before for select")
 	for {
 		select {
 		case newMatrixMaster := <-ch_recieve:
+			fmt.Println("Recieved masterMatrix")
 			if checkMaster(newMatrixMaster) == SLAVE {
 				return SLAVE // Change to slave
 			}
 		default:
+			fmt.Println("Waiting on 'ch_recieveSlave'")
+			recievedMatrix := <-ch_recieveSlave
+			fmt.Println("Recieved on 'ch_recieveSlave'")
+
+			// Check for disconnected slaves and delete them
+			if flagDisconnectedPeer == true { // Peerus deletus
+				disconnectedIP := <-ch_peerDisconnected
+				matrixMaster = deleteDisconnectedPeer(matrixMaster, disconnectedIP)
+				flagDisconnectedPeer = false
+			}
+
+			// Merge info from recievedMatrix, append if new slave
+			matrixMaster = mergeRecievedInfo(matrixMaster, recievedMatrix)
+
+			// Remove served order at current floor in recievedMatrix
+			matrixMaster = checkOrderServed(matrixMaster, recievedMatrix)
+
+			// Insert unconfirmed orders UP/DOWN into matrixMaster
+			matrixMaster = mergeUnconfirmedOrders(matrixMaster, recievedMatrix)
+
+			// Clear orders
+			matrixMaster = clearCurrentOrders(matrixMaster)
+
+			// Calculate stop
+			matrixMaster = calculateElevatorStops(matrixMaster)
+
+			// Broadcast the whole
+			ch_recieveLocal <- matrixMaster // Send to local elevator (localOrderHandler)
+			fmt.Println("MASTER: Sent on ch_recieveLocal")
+			ch_repeatedBcast <- matrixMaster
+			fmt.Println("MASTER: Sent on ch_repeatBcast")
+
 			// Remain master, continue
 		}
 
-		fmt.Println("Waiting on 'ch_recieveSlave'")
-		recievedMatrix := <-ch_recieveSlave
-		fmt.Println("Recieved on 'ch_recieveSlave'")
-
-		// Check for disconnected slaves and delete them
-		if flagDisconnectedPeer == true { // Peerus deletus
-			disconnectedIP := <-ch_peerDisconnected
-			matrixMaster = deleteDisconnectedPeer(matrixMaster, disconnectedIP)
-			flagDisconnectedPeer = false
-		}
-
-		// Merge info from recievedMatrix, append if new slave
-		matrixMaster = mergeRecievedInfo(matrixMaster, recievedMatrix)
-
-		// Remove served order at current floor in recievedMatrix
-		matrixMaster = checkOrderServed(matrixMaster, recievedMatrix)
-
-		// Insert unconfirmed orders UP/DOWN into matrixMaster
-		matrixMaster = mergeUnconfirmedOrders(matrixMaster, recievedMatrix)
-
-		// Clear orders
-		matrixMaster = clearCurrentOrders(matrixMaster)
-
-		// Calculate stop
-		matrixMaster = calculateElevatorStops(matrixMaster)
-
-		// Broadcast the whole
-		ch_repeatedBcast <- matrixMaster
 	}
 	// return SLAVE	// Unreachable code.
 	// stateChange(matrixMaster, SLAVE, cabOrders)
 }
 
 /* Slave state, checks for alive masters. Transitions if no masters on UDP. */
-func stateSlave(ch_recieve <-chan [][]int) STATE {
+func stateSlave(ch_recieve <-chan [][]int, ch_repeatedBcast chan<- [][]int, ch_recieveLocal chan<- [][]int, ch_recieveSlaveLocal <-chan [][]int) STATE {
 	// var masterMatrix [][]int		// masterMatrix not used, only checks for signal on channel
 	ch_slaveAlone := make(chan bool)
 	ch_killTimer := make(chan bool)
 	flagSlaveAlone := true // Assumes slave to be alone
 	fmt.Println("Slave-state initialized")
 
+	// USE ch_repeatedBcast <- matrixMaster
+
+	// ALL CODE BELOW IS OK 23.03.2019
 	for {
-		if flagSlaveAlone == true {
-			go slaveTimer(ch_slaveAlone, ch_killTimer)
-			flagSlaveAlone = false
-		}
 		select {
-		case <-ch_recieve: // Recieves masterMatrix on channel from master over UDP. //masterMatrix = <-ch_recieve:
+		case localMatrix := <-ch_recieveSlaveLocal: // Update repeated Bcasts with last local state
+			ch_repeatedBcast <- localMatrix
+		case masterMatrix := <-ch_recieve: // Recieves masterMatrix on channel from master over UDP. //masterMatrix = <-ch_recieve:
+			ch_killTimer <- true  // Kill time
 			flagSlaveAlone = true // Reset timer-flag
-			ch_killTimer <- true  // Kill timer
+			ch_recieveLocal <- masterMatrix
 		case <-ch_slaveAlone:
 			fmt.Println("SLAVE ID ", localIP, "is transitioning to MASTER")
 			return MASTER
 		default:
-			// Do nothing
+			if flagSlaveAlone == true {
+				go slaveTimer(ch_slaveAlone, ch_killTimer)
+				flagSlaveAlone = false
+			}
 		}
 	}
 	// return MASTER
@@ -220,23 +249,30 @@ func slaveTimer(ch_slaveAlone chan<- bool, ch_killTimer <-chan bool) {
 			ch_slaveAlone <- true
 			break
 		case <-ch_killTimer:
-			break
+			return
 		}
 	}
 }
 
 /* Communicates the master matrix to the elevator, and recieves data of the
 elevators current state which is broadcast to master over UDP. */
-func localOrderHandler(ch_recieve <-chan [][]int, ch_transmitSlave chan<- [][]int, ch_elevRecieve chan<- [][]int, ch_elevTransmit <-chan [][]int) {
+func localOrderHandler(ch_recieveLocal <-chan [][]int, ch_transmitSlave chan<- [][]int, ch_elevRecieve chan<- [][]int, ch_elevTransmit <-chan [][]int, ch_recieveSlaveLocal chan<- [][]int) {
 	localMatrix := initLocalMatrix()
+	ch_recieveSlaveLocal <- localMatrix
 	for {
 		select {
-		case masterMatrix := <-ch_recieve:
+		case masterMatrix := <-ch_recieveLocal:
+			// fmt.Println("localOrderHandler: Sending masterMatrix on ch_recieveLocal")
 			ch_elevRecieve <- masterMatrix // masterMatrix TO elevator
+			// fmt.Println("localOrderHandler: masterMatrix sent to ch_elevRecieve")
 		case localMatrix = <-ch_elevTransmit: // localMatrix FROM elevator
 			localMatrix[UP_BUTTON][SLAVE_MASTER] = int(flagMasterSlave) // Ensure correct state
 			localMatrix[UP_BUTTON][IP] = localIP                        // Ensure correct IP
 			ch_transmitSlave <- localMatrix
+			if flagMasterSlave == SLAVE {
+				ch_recieveSlaveLocal <- localMatrix
+				fmt.Println("localOrderHandler: Sent localMatri")
+			}
 		default:
 			// Do nothing.
 		}
@@ -260,12 +296,13 @@ func checkMaster(matrix [][]int) STATE {
 	rows := len(matrix)
 	for row := int(FIRST_ELEV); row < rows; row++ {
 		if matrix[row][SLAVE_MASTER] == int(MASTER) {
-			if matrix[row][IP] < localIP {
-				return SLAVE // Transition to slave
+			if matrix[row][IP] > localIP {
+				fmt.Println("matrix[row][IP] = ", matrix[row][IP], ". LocalIP = ", localIP)
+				return MASTER // Transition to slave
 			}
 		}
 	}
-	return MASTER // Remain master
+	return SLAVE // Remain master
 }
 
 func initMatrixMaster() [][]int {
@@ -278,11 +315,11 @@ func initMatrixMaster() [][]int {
 	fmt.Println(matrixMaster)
 
 	// TODO REMOVE WHEN AT LAB AND HAS HARDWARE / SIMULATOR
-	elevio.GetFloorInit(ch_floorSensor)
-	//ch_floorSensor <- 2 // Dummy for when elevator is not present
+	// elevio.GetFloorInit(ch_floorSensor)
+	// ch_floorSensor <- 2 // Dummy for when elevator is not present
 	matrixMaster[FIRST_ELEV][IP] = localIP
-	matrixMaster[FIRST_ELEV][DIR] = elevio.MD_Stop
-	matrixMaster[FIRST_ELEV][FLOOR] = <-ch_floorSensor
+	matrixMaster[FIRST_ELEV][DIR] = int(elevio.MD_Stop)
+	matrixMaster[FIRST_ELEV][FLOOR] = 2 //<-ch_floorSensor
 	matrixMaster[FIRST_ELEV][ELEV_STATE] = int(fsm.IDLE)
 	matrixMaster[FIRST_ELEV][SLAVE_MASTER] = int(MASTER)
 	return matrixMaster
@@ -297,10 +334,10 @@ func getLocalIP() int {
 		returnedIP = "DISCONNECTED"
 	}
 
-	IP_length := len(returnedIP)
-	for i := IP_length - 1; i > 0; i-- {
+	IPlength := len(returnedIP)
+	for i := IPlength - 1; i > 0; i-- {
 		if returnedIP[i] == '.' {
-			returnedIP = returnedIP[i+1 : IP_length]
+			returnedIP = returnedIP[i+1 : IPlength]
 			break
 		}
 	}
@@ -319,61 +356,68 @@ func tickCounter(ch_updateInterval chan<- int) {
 /*               HELPER FUNCTIONS                  */
 
 /* Check for disconnected peers, pass IP as int over channel */
-func checkDisconnectedPeers(ch_peerUpdate <-chan peers.PeerUpdate, ch_peerDisconnected chan<- int) {
-	for {
-		if flagDisconnectedPeer == false {
-			peerUpdate := <-ch_peerUpdate
-			if len(peerUpdate.Lost) > 0 { // A peer has DC'ed
-				flagDisconnectedPeer = true
-				peerIP := file_IO.StringToNumbers(peerUpdate.Lost[0])[0]
-				ch_peerDisconnected <- peerIP
-			}
-		}
-	}
-}
-
-// ALTERNATIVE? The information sent over peerUpdate.Lost doesnt make sense..
-// It also crashes when something disconnects. WIP function below.
 // func checkDisconnectedPeers(ch_peerUpdate <-chan peers.PeerUpdate, ch_peerDisconnected chan<- int) {
 // 	for {
 // 		if flagDisconnectedPeer == false {
 // 			peerUpdate := <-ch_peerUpdate
-// 			peerUpdateLost := peerUpdate.Lost
-// 			fmt.Println("Lost peer-array: ")
-// 			fmt.Println(peerUpdateLost)
-// 			if len(peerUpdate.Lost) >= 1 { // A peer has DC'ed
+// 			if len(peerUpdate.Lost) > 0 { // A peer has DC'ed
 // 				flagDisconnectedPeer = true
-//
-// 				if len(peerUpdate.Lost) >= 1 {
-// 					flagDisconnectedPeer = true
-// 					fmt.Println("Lost peers: ", peerUpdate.Lost[0])
-// 					peerReturnedIP := splitAtPeriodReturnLastItem(peerUpdate.Lost[0])
-// 					// peerReturnedIP := file_IO.StringToNumbers(peerUpdate.Lost[0])
-// 					fmt.Println("peerReturnedIP: ", peerReturnedIP)
-// 					ch_peerDisconnected <- peerReturnedIP
-// 				}
-//
-// 				// // Split at period, take the last IP-field.
-// 				// s := strings.Split(peerUpdate.Lost[0], ".")
-// 				// fmt.Println(s)
-// 				// peerIP, err := strconv.Atoi(s[len(s)-1])
-// 				// if err == nil {
-// 				// 	ch_peerDisconnected <- peerIP
-// 				// } else {
-// 				// 	fmt.Println("Error reading disconnected peer.")
-// 				// }
-// 				// ch_peerDisconnected <- peerIP
-// 				// fmt.Println("Sent ", peerIP, " over ch_peerDisconnected.")
-// 				// // peerIP := file_IO.StringToNumbers(peerUpdate.Lost[0])[0]
+// 				peerIP := file_IO.StringToNumbers(peerUpdate.Lost[0])[0]
+// 				ch_peerDisconnected <- peerIP
 // 			}
 // 		}
 // 	}
 // }
-// func splitAtPeriodReturnLastItem(str string) int {
-// 	s := strings.Split(str, ".")
-// 	sInt, _ := strconv.Atoi(s[len(s)-1])
-// 	return sInt
-// }
+
+// ALTERNATIVE? The information sent over peerUpdate.Lost doesnt make sense..
+// It also crashes when something disconnects. WIP function below.
+func checkDisconnectedPeers(ch_peerUpdate <-chan peers.PeerUpdate, ch_peerDisconnected chan<- int) {
+	for {
+		if flagDisconnectedPeer == false {
+			peerUpdate := <-ch_peerUpdate
+			peerUpdateLost := peerUpdate.Lost
+			fmt.Println("Lost peer-array: ")
+			fmt.Println(peerUpdateLost)
+
+		}
+
+		// if len(peerUpdate.Lost) >= 1 {
+		// 	flagDisconnectedPeer = true
+		// 	fmt.Println("Lost peers: ", peerUpdate.Lost[0])
+		// 	peerReturnedIP := splitAtPeriodReturnLastItem(peerUpdate.Lost[0])
+		// 	// peerReturnedIP := file_IO.StringToNumbers(peerUpdate.Lost[0])
+		// 	fmt.Println("peerReturnedIP: ", peerReturnedIP)
+		// 	ch_peerDisconnected <- peerReturnedIP
+		// }
+
+		// fmt.Println("Length of peers lost array: ", len(peerUpdateLost))
+		//
+		// peerLostLength := len(peerUpdateLost)
+		// if peerLostLength > 0 {
+		// 	flagDisconnectedPeer = true
+		// 	peerUpdateIPLength := len(peerUpdateLost[0])
+		// 	for lostPeer := 0; lostPeer < peerUpdateIPLength; lostPeer++ {
+		// 		for i := peerLostLength - 1; i > 0; i-- {
+		// 			if peerUpdateLost[lostPeer][i] == '.' {
+		// 				peerUpdateLost[lostPeer] = peerUpdateLost[lostPeer][i+1 : peerLostLength]
+		// 				break
+		// 			}
+		// 		}
+		// 	}
+		// 	// disconnectedPeerList := file_IO.StringToNumbers(peerUpdateLost)
+		// 	for i := 0; i < peerLostLength; i++ {
+		// 		fmt.Println("peerLost loop: ", i)
+		// 		fmt.Println("PeerLost value: ", file_IO.StringToNumbers(peerUpdateLost[i]))
+		// 		ch_peerDisconnected <- file_IO.StringToNumbers(peerUpdateLost[i])[0]
+		// 	}
+		// }
+	}
+}
+func splitAtPeriodReturnLastItem(str string) int {
+	s := strings.Split(str, ".")
+	sInt, _ := strconv.Atoi(s[len(s)-1])
+	return sInt
+}
 
 /* Delete peer with the corresponding IP */
 func deleteDisconnectedPeer(matrixMaster [][]int, disconnectedIP int) [][]int {
@@ -584,16 +628,14 @@ func repeatedBroadcast(ch_repeatedBcast <-chan [][]int, ch_updateInterval <-chan
 			fmt.Println(msg)
 			matrix = msg
 		default:
-			// Empty
-		}
-		<-ch_updateInterval      // Send over channel once each UPDATE_INTERVAL
-		switch flagMasterSlave { // Send over channel dependent on MASTER/SLAVE state
-		case MASTER:
-			ch_transmit <- matrix
-			// fmt.Println("repeatedBroadcast: Sent matrix over ch_transmit (MASTER)")
-		case SLAVE:
-			ch_transmitSlave <- matrix
-			// fmt.Println("repeatedBroadcast: Sent matrix over ch_transmitSlave (SLAVE)")
+			<-ch_updateInterval      // Send over channel once each UPDATE_INTERVAL
+			switch flagMasterSlave { // Send over channel dependent on MASTER/SLAVE state
+			case MASTER:
+				ch_transmit <- matrix
+			case SLAVE:
+				ch_transmitSlave <- matrix
+				// fmt.Println("repeatedBroadcast: Sent matrix over ch_transmitSlave (SLAVE)")
+			}
 		}
 	}
 }
