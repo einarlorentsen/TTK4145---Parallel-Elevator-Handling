@@ -282,7 +282,7 @@ func localOrderHandler(ch_recieveLocal <-chan [][]int, ch_transmitSlave chan<- [
 	}
 }
 
-/* Initialize local matrix, 3x(5+N_FLOORS)
+/* Initialize local matrix, 2x(5+N_FLOORS)
    contains information about local elevator and UP/DOWN hall lights. */
 func InitLocalMatrix() [][]int {
 	localMatrix := make([][]int, 0)
