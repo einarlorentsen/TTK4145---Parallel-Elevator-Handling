@@ -2,7 +2,7 @@ package master_slave_fsm
 
 import (
 	"fmt"
-	"os" // For getPID
+	// "os" // For getPID
 	"time"
 
 	"../elevator/elevio"
@@ -56,10 +56,11 @@ func InitMasterSlave() {
 	fmt.Println("Initializing Master/Slave state machine...")
 	var matrixMaster [][]int
 
-	// localIP = getLocalIP() // ENABLE AT LAB, DOESNT WORK ELSEWHERE?
-	localIP = os.Getpid()
+	localIP = getLocalIP() // ENABLE AT LAB, DOESNT WORK ELSEWHERE?
+	// localIP = os.Getpid()
 	fullLocalIP, _ := localip.LocalIP() // CURRENTLY PASSED TO PEERS TRANSMITTER. UNSURE
 	fmt.Println("This machines localIP-ID is: ", localIP)
+	fmt.Println("This machines fullLocalIP-ID is: ", fullLocalIP)
 
 	ch_elevTransmit := make(chan [][]int) // Elevator transmission, FROM elevator
 	ch_elevRecieve := make(chan [][]int)  // Elevator reciever,	TO elevator
@@ -277,19 +278,13 @@ func initMatrixMaster() [][]int {
 	fmt.Println(matrixMaster)
 
 	// TODO REMOVE WHEN AT LAB AND HAS HARDWARE / SIMULATOR
-	// elevio.GetFloorInit(ch_floorSensor)
+	elevio.GetFloorInit(ch_floorSensor)
 	//ch_floorSensor <- 2 // Dummy for when elevator is not present
-	fmt.Println("UWOTM8")
 	matrixMaster[FIRST_ELEV][IP] = localIP
-	fmt.Println("Bug here?")
 	matrixMaster[FIRST_ELEV][DIR] = elevio.MD_Stop
-	fmt.Println("Bug here2?")
-	matrixMaster[FIRST_ELEV][FLOOR] = 2 //<-ch_floorSensor
-	fmt.Println("Bug here3?")
+	matrixMaster[FIRST_ELEV][FLOOR] = <-ch_floorSensor
 	matrixMaster[FIRST_ELEV][ELEV_STATE] = int(fsm.IDLE)
-	fmt.Println("Bug here4?")
 	matrixMaster[FIRST_ELEV][SLAVE_MASTER] = int(MASTER)
-	fmt.Println("Bug here5?")
 	return matrixMaster
 }
 
