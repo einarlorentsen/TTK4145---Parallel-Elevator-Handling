@@ -1,4 +1,4 @@
-package user_interface
+package elevator
 
 import (
 	"fmt"
@@ -7,9 +7,11 @@ import (
 	"../file_IO"
 	"../master_slave_fsm"
 	"./elevio"
+	"./order_handler"
 )
 
 var _mtx sync.Mutex
+var elevIndex int
 
 /* Set lights */
 
@@ -20,21 +22,44 @@ func CurrentFloorLight(floor int) {
 	}
 }
 
-/*  */
-
 /* */
-func InitElevator() {
+func InitElevator(ch_elevTransmit chan<- [][]int, ch_elevRecieve <-chan [][]int) {
+	ch_hallOrder := make(chan elevio.ButtonEvent) // Hall orders sent over channel
+	ch_cabOrder := make(chan elevio.ButtonEvent)  // Cab orders sent over channel
 
 	cabOrders := file_IO.ReadFile(master_slave_fsm.BACKUP_FILENAME) // Matrix
 	if len(cabOrders) == 0 {
 		fmt.Println("No backups found.")
 	} else {
-		fmt.Println("Backup found.")
+		fmt.Println("Backup found.") /*  */
 		//initialCabOrders := cabOrders[0]
 	}
+
+	go order_handler.UpdateOrderMatrix(ch_hallOrder, ch_cabOrder) // Button updates over these channels
+
+	/* .. STUFF */
+	elevatorHandler(ch_elevTransmit, ch_elevRecieve)
 }
 
-func updateMasterMatrix(ch_elevRecieve <-chan [][]int) {
+/*  */
+func elevatorHandler(ch_elevTransmit chan<- [][]int, ch_elevRecieve <-chan [][]int) {
+	localMatrix := master_slave_fsm.InitLocalMatrix()
+	var cabOrders = make([]int, int(master_slave_fsm.N_FLOORS))
+
+	/* Stuff */
+
+	for {
+		select {
+		case matrixMaster := <-ch_elevRecieve:
+			// Extract light-matrix
+			// Extract stops
+
+		}
+	}
+
+}
+
+func updateMasterMatrix(ch_elevRecieve <-chan [][]int, ch_copyMatrixMaster chan<- [][]int) {
 	var copyMatrixMaster [][]int = master_slave_fsm.InitMatrixMaster()
 	var recievedMatrix [][]int
 	for {
@@ -42,6 +67,9 @@ func updateMasterMatrix(ch_elevRecieve <-chan [][]int) {
 		case recievedMatrix = <-ch_elevRecieve:
 			if checkMatrixUpdate(recievedMatrix, copyMatrixMaster) == true {
 				copyMatrixMaster = recievedMatrix
+				_mtx.Lock()
+				elevIndex = indexFinder(copyMatrixMaster)
+				_mtx.Unlock()
 				ch_copyMatrixMaster <- copyMatrixMaster
 
 			}
@@ -49,7 +77,6 @@ func updateMasterMatrix(ch_elevRecieve <-chan [][]int) {
 			//Do absolutly nothing
 		}
 	}
-
 }
 
 func checkMatrixUpdate(currentMatrix [][]int, prevMatrix [][]int) bool {
@@ -63,4 +90,14 @@ func checkMatrixUpdate(currentMatrix [][]int, prevMatrix [][]int) bool {
 		}
 	}
 	return false
+}
+
+func indexFinder(matrixMaster [][]int) int {
+	rows := len(matrixMaster)
+	for index := 0; index < rows; index++ {
+		if matrixMaster[index][master_slave_fsm.IP] == master_slave_fsm.LocalIP {
+			return index
+		}
+	}
+	return -1
 }

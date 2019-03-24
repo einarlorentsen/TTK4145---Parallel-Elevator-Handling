@@ -51,22 +51,25 @@ const PORT_bcast = 16569
 const PORT_slaveBcast = 16570
 const PORT_peers = 15647
 
-var localIP int
+var LocalIP int
 var flagDisconnectedPeer bool = false
 var flagMasterSlave STATE
 
-func InitMasterSlave() {
+func SetLocalIP() {
+	// LocalIP = getLocalIP() // ENABLE AT LAB, DOESNT WORK ELSEWHERE?
+	LocalIP = os.Getpid()
+}
+
+func InitMasterSlave(ch_elevTransmit <-chan [][]int, ch_elevRecieve chan<- [][]int) {
 	fmt.Println("Initializing Master/Slave state machine...")
 	var matrixMaster [][]int
 
-	// localIP = getLocalIP() // ENABLE AT LAB, DOESNT WORK ELSEWHERE?
-	localIP = os.Getpid()
-	// fullLocalIP, _ := localip.LocalIP() // CURRENTLY PASSED TO PEERS TRANSMITTER. UNSURE
-	fmt.Println("This machines localIP-ID is: ", localIP)
+	// fullLocalIP, _ := LocalIP.LocalIP() // CURRENTLY PASSED TO PEERS TRANSMITTER. UNSURE
+	fmt.Println("This machines LocalIP-ID is: ", LocalIP)
 	// fmt.Println("This machines fullLocalIP-ID is: ", fullLocalIP)
 
-	ch_elevTransmit := make(chan [][]int) // Elevator transmission, FROM elevator
-	ch_elevRecieve := make(chan [][]int)  // Elevator reciever,	TO elevator
+	// ch_elevTransmit := make(chan [][]int) // Elevator transmission, FROM elevator
+	// ch_elevRecieve := make(chan [][]int)  // Elevator reciever,	TO elevator
 
 	ch_updateInterval := make(chan int) // Periodic update-ticks
 	ch_peerUpdate := make(chan peers.PeerUpdate)
@@ -83,7 +86,7 @@ func InitMasterSlave() {
 	// Communicates with the local elevator
 	go localOrderHandler(ch_recieveLocal, ch_transmitSlave, ch_elevRecieve, ch_elevTransmit, ch_recieveSlaveLocal)
 
-	go peers.Transmitter(PORT_peers, string(localIP), ch_peerEnable)
+	go peers.Transmitter(PORT_peers, string(LocalIP), ch_peerEnable)
 	// go peers.Transmitter(PORT_peers, fullLocalIP, ch_peerEnable)
 	go peers.Receiver(PORT_peers, ch_peerUpdate)
 
@@ -106,7 +109,7 @@ func InitMasterSlave() {
 	fmt.Println("Master/Slave state machine initialized.")
 
 	// Delete me, just an elevator listener, doesn't do shit.
-	go elevListen(ch_elevTransmit, ch_elevRecieve)
+	// go elevListen(ch_elevTransmit, ch_elevRecieve)
 
 	// Start in slave-state
 	stateChange(matrixMaster, SLAVE, ch_recieve, ch_recieveSlave, ch_peerDisconnected, ch_repeatedBcast, ch_recieveLocal, ch_recieveSlaveLocal)
@@ -228,7 +231,7 @@ func stateSlave(ch_recieve <-chan [][]int, ch_repeatedBcast chan<- [][]int, ch_r
 			flagSlaveAlone = true // Reset timer-flag
 			ch_recieveLocal <- masterMatrix
 		case <-ch_slaveAlone:
-			fmt.Println("SLAVE ID ", localIP, "is transitioning to MASTER")
+			fmt.Println("SLAVE ID ", LocalIP, "is transitioning to MASTER")
 			return MASTER
 		default:
 			if flagSlaveAlone == true {
@@ -257,7 +260,7 @@ func slaveTimer(ch_slaveAlone chan<- bool, ch_killTimer <-chan bool) {
 /* Communicates the master matrix to the elevator, and recieves data of the
 elevators current state which is broadcast to master over UDP. */
 func localOrderHandler(ch_recieveLocal <-chan [][]int, ch_transmitSlave chan<- [][]int, ch_elevRecieve chan<- [][]int, ch_elevTransmit <-chan [][]int, ch_recieveSlaveLocal chan<- [][]int) {
-	localMatrix := initLocalMatrix()
+	localMatrix := InitLocalMatrix()
 	ch_recieveSlaveLocal <- localMatrix
 	for {
 		select {
@@ -267,7 +270,7 @@ func localOrderHandler(ch_recieveLocal <-chan [][]int, ch_transmitSlave chan<- [
 			// fmt.Println("localOrderHandler: masterMatrix sent to ch_elevRecieve")
 		case localMatrix = <-ch_elevTransmit: // localMatrix FROM elevator
 			localMatrix[UP_BUTTON][SLAVE_MASTER] = int(flagMasterSlave) // Ensure correct state
-			localMatrix[UP_BUTTON][IP] = localIP                        // Ensure correct IP
+			localMatrix[UP_BUTTON][IP] = LocalIP                        // Ensure correct IP
 			ch_transmitSlave <- localMatrix
 			if flagMasterSlave == SLAVE {
 				ch_recieveSlaveLocal <- localMatrix
@@ -281,7 +284,7 @@ func localOrderHandler(ch_recieveLocal <-chan [][]int, ch_transmitSlave chan<- [
 
 /* Initialize local matrix, 3x(5+N_FLOORS)
    contains information about local elevator and UP/DOWN hall lights. */
-func initLocalMatrix() [][]int {
+func InitLocalMatrix() [][]int {
 	localMatrix := make([][]int, 0)
 	for i := 0; i <= 1; i++ {
 		localMatrix = append(localMatrix, make([]int, 5+N_FLOORS))
@@ -296,8 +299,8 @@ func checkMaster(matrix [][]int) STATE {
 	rows := len(matrix)
 	for row := int(FIRST_ELEV); row < rows; row++ {
 		if matrix[row][SLAVE_MASTER] == int(MASTER) {
-			if matrix[row][IP] > localIP {
-				fmt.Println("matrix[row][IP] = ", matrix[row][IP], ". LocalIP = ", localIP)
+			if matrix[row][IP] > LocalIP {
+				fmt.Println("matrix[row][IP] = ", matrix[row][IP], ". LocalIP = ", LocalIP)
 				return MASTER // Transition to slave
 			}
 		}
@@ -317,7 +320,7 @@ func InitMatrixMaster() [][]int {
 	// TODO REMOVE WHEN AT LAB AND HAS HARDWARE / SIMULATOR
 	// elevio.GetFloorInit(ch_floorSensor)
 	// ch_floorSensor <- 2 // Dummy for when elevator is not present
-	matrixMaster[FIRST_ELEV][IP] = localIP
+	matrixMaster[FIRST_ELEV][IP] = LocalIP
 	matrixMaster[FIRST_ELEV][DIR] = int(elevio.MD_Stop)
 	matrixMaster[FIRST_ELEV][FLOOR] = 2 //<-ch_floorSensor
 	matrixMaster[FIRST_ELEV][ELEV_STATE] = int(fsm.IDLE)
