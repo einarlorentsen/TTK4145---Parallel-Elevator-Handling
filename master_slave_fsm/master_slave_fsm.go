@@ -153,7 +153,7 @@ func stateMaster(matrixMaster [][]int, ch_recieve <-chan [][]int, ch_recieveSlav
 
 	// If matrixMaster is empty, generate masterMatrix for 1 elevator
 	if matrixMaster == nil {
-		matrixMaster = initMatrixMaster()
+		matrixMaster = InitMatrixMaster()
 	}
 	ch_repeatedBcast <- matrixMaster // Start the correct masterMatrix UDP broadcast
 
@@ -305,7 +305,7 @@ func checkMaster(matrix [][]int) STATE {
 	return SLAVE // Remain master
 }
 
-func initMatrixMaster() [][]int {
+func InitMatrixMaster() [][]int {
 	matrixMaster := make([][]int, 0)
 	for i := 0; i <= 2; i++ { // For 1 elevator, master is assumed alone
 		matrixMaster = append(matrixMaster, make([]int, 5+N_FLOORS))
