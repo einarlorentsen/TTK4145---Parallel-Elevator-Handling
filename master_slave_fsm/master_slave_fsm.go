@@ -2,9 +2,9 @@ package master_slave_fsm
 
 import (
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
+
 	// "os" // For getPID
 	"time"
 
@@ -55,11 +55,11 @@ import (
 
 var LocalIP int
 var flagDisconnectedPeer bool = false
-var flagMasterSlave STATE
+var flagMasterSlave constant.STATE
 
 func SetLocalIP() {
-	// LocalIP = getLocalIP() // ENABLE AT LAB, DOESNT WORK ELSEWHERE?
-	LocalIP = os.Getpid()
+	LocalIP = getLocalIP() // ENABLE AT LAB, DOESNT WORK ELSEWHERE?
+	// LocalIP = os.Getpid()
 }
 
 func InitMasterSlave(ch_elevTransmit <-chan [][]int, ch_elevRecieve chan<- [][]int) {
@@ -132,7 +132,7 @@ func elevListen(ch_elevTransmit <-chan [][]int, ch_elevRecieve <-chan [][]int) {
 // Slave state
 
 /* PLACEHOLDER TITLE */
-func stateChange(matrixMaster [][]int, currentState STATE, ch_recieve <-chan [][]int, ch_recieveSlave <-chan [][]int, ch_peerDisconnected <-chan int, ch_repeatedBcast chan<- [][]int, ch_recieveLocal chan<- [][]int, ch_recieveSlaveLocal <-chan [][]int) {
+func stateChange(matrixMaster [][]int, currentState constant.STATE, ch_recieve <-chan [][]int, ch_recieveSlave <-chan [][]int, ch_peerDisconnected <-chan int, ch_repeatedBcast chan<- [][]int, ch_recieveLocal chan<- [][]int, ch_recieveSlaveLocal <-chan [][]int) {
 	for {
 		switch currentState {
 		case constant.MASTER:
@@ -164,18 +164,18 @@ func stateMaster(matrixMaster [][]int, ch_recieve <-chan [][]int, ch_recieveSlav
 
 	// JUST FOR TESTING. DELETE AT LATER STAGE
 	// ch_recieve <- matrixMaster
-	fmt.Println("Right before for select")
 	for {
 		select {
 		case newMatrixMaster := <-ch_recieve:
-			fmt.Println("Recieved masterMatrix")
+			fmt.Println("stateMaster: Recieved masterMatrix")
 			if checkMaster(newMatrixMaster) == constant.SLAVE {
+				fmt.Println("stateMaster: checkMaster returned SLAVE")
 				return constant.SLAVE // Change to slave
 			}
 		default:
-			fmt.Println("Waiting on 'ch_recieveSlave'")
+			fmt.Println("stateMaster: Waiting on 'ch_recieveSlave'")
 			recievedMatrix := <-ch_recieveSlave
-			fmt.Println("Recieved on 'ch_recieveSlave'")
+			fmt.Println("stateMaster: Recieved on 'ch_recieveSlave'")
 
 			// Check for disconnected slaves and delete them
 			if flagDisconnectedPeer == true { // Peerus deletus
@@ -291,6 +291,7 @@ func InitLocalMatrix() [][]int {
 	for i := 0; i <= 1; i++ {
 		localMatrix = append(localMatrix, make([]int, 5+constant.N_FLOORS))
 	}
+	localMatrix[constant.UP_BUTTON][constant.IP] = LocalIP
 	return localMatrix
 }
 
@@ -301,13 +302,25 @@ func checkMaster(matrix [][]int) constant.STATE {
 	rows := len(matrix)
 	for row := int(constant.FIRST_ELEV); row < rows; row++ {
 		if matrix[row][constant.SLAVE_MASTER] == int(constant.MASTER) {
-			if matrix[row][constant.IP] > LocalIP {
-				fmt.Println("matrix[row][IP] = ", matrix[row][constant.IP], ". LocalIP = ", LocalIP)
-				return constant.MASTER // Transition to slave
+			fmt.Println("checkMaster: Found master in matrix.")
+			fmt.Println("matrix[row][IP] = ", matrix[row][constant.IP], ". LocalIP = ", LocalIP)
+			if matrix[row][constant.IP] < LocalIP {
+				return constant.SLAVE //
 			}
 		}
 	}
-	return constant.SLAVE // Remain master
+
+	return constant.MASTER //
+	// rows := len(matrix)
+	// for row := int(constant.FIRST_ELEV); row < rows; row++ {
+	// 	if matrix[row][constant.SLAVE_MASTER] == int(constant.MASTER) {
+	// 		if matrix[row][constant.IP] > LocalIP {
+	// 			fmt.Println("matrix[row][IP] = ", matrix[row][constant.IP], ". LocalIP = ", LocalIP)
+	// 			return constant.MASTER // Remain master
+	// 		}
+	// 	}
+	// }
+	// return constant.SLAVE // Transition SLAVE
 }
 
 func InitMatrixMaster() [][]int {
@@ -438,7 +451,7 @@ func deleteDisconnectedPeer(matrixMaster [][]int, disconnectedIP int) [][]int {
 func mergeRecievedInfo(matrixMaster [][]int, recievedMatrix [][]int) [][]int {
 	slaveIP := recievedMatrix[constant.UP_BUTTON][constant.IP]
 	flagSlaveExist := false
-	for row := int(FIRST_ELEV); row < len(matrixMaster); row++ {
+	for row := int(constant.FIRST_ELEV); row < len(matrixMaster); row++ {
 		if matrixMaster[row][constant.IP] == slaveIP {
 			matrixMaster[row][constant.DIR] = recievedMatrix[constant.UP_BUTTON][constant.DIR]
 			matrixMaster[row][constant.FLOOR] = recievedMatrix[constant.UP_BUTTON][constant.FLOOR]

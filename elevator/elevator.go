@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sync"
 
+	"../constant"
 	"../file_IO"
 	"../master_slave_fsm"
 	"./elevio"
@@ -13,7 +14,8 @@ import (
 
 var _mtx sync.Mutex
 var elevIndex int
-var LocalMatrix [][]int
+
+// var LocalMatrix [][]int
 
 /* Set lights */
 
@@ -32,12 +34,16 @@ func InitElevator(ch_elevTransmit chan<- [][]int, ch_elevRecieve <-chan [][]int)
 	ch_floor := make(chan constant.FIELD)         // Channel for FLOOR updates
 	ch_state := make(chan fsm.STATE)              // Channel for STATE updates
 
-	cabOrders := file_IO.ReadFile(master_slave_fsm.BACKUP_FILENAME) // Matrix
-	if len(cabOrders) == 0 {
+	order_handler.InitLocalElevatorMatrix()
+
+	cabOrdersBackup := file_IO.ReadFile(constant.BACKUP_FILENAME) // Matrix
+	if len(cabOrdersBackup) == 0 {
 		fmt.Println("No backups found.")
+		order_handler.InitCabOrders([]int{})
 	} else {
 		fmt.Println("Backup found.") /*  */
-		//initialCabOrders := cabOrders[0]
+		_mtx.Lock()
+		order_handler.InitCabOrders(cabOrdersBackup[0])
 	}
 
 	// Button updates over their respective channels
@@ -45,26 +51,27 @@ func InitElevator(ch_elevTransmit chan<- [][]int, ch_elevRecieve <-chan [][]int)
 	// Listen for elevator updates, send the update to master/slave module.
 	go order_handler.ListenElevator(ch_elevTransmit, ch_dir, ch_floor, ch_state, ch_hallOrder)
 	/* .. STUFF */
-	elevatorHandler(ch_elevTransmit, ch_elevRecieve)
+
+	// elevatorHandler(ch_elevTransmit, ch_elevRecieve)
 }
 
 /*  */
-func elevatorHandler(ch_elevTransmit chan<- [][]int, ch_elevRecieve <-chan [][]int) {
-	LocalMatrix := initLocalElevatorMatrix()
-	var cabOrders = make([]int, int(master_slave_fsm.N_FLOORS))
-
-	/* Stuff */
-
-	for {
-		select {
-		case matrixMaster := <-ch_elevRecieve:
-			// Extract light-matrix
-			// Extract stops
-
-		}
-	}
-
-}
+// func elevatorHandler(ch_elevTransmit chan<- [][]int, ch_elevRecieve <-chan [][]int) {
+//
+// 	// var cabOrders = make([]int, int(constant.N_FLOORS))
+//
+// 	/* Stuff */
+//
+// 	for {
+// 		// select {
+// 		// case matrixMaster := <-ch_elevRecieve:
+// 		// 	// Extract light-matrix
+// 		// 	// Extract stops
+// 		//
+// 		// }
+// 	}
+//
+// }
 
 func updateMasterMatrix(ch_elevRecieve <-chan [][]int, ch_copyMatrixMaster chan<- [][]int) {
 	var copyMatrixMaster [][]int = master_slave_fsm.InitMatrixMaster()
@@ -102,21 +109,9 @@ func checkMatrixUpdate(currentMatrix [][]int, prevMatrix [][]int) bool {
 func indexFinder(matrixMaster [][]int) int {
 	rows := len(matrixMaster)
 	for index := 0; index < rows; index++ {
-		if matrixMaster[index][master_slave_fsm.IP] == master_slave_fsm.LocalIP {
+		if matrixMaster[index][constant.IP] == master_slave_fsm.LocalIP {
 			return index
 		}
 	}
 	return -1
-}
-
-func initLocalElevatorMatrix() [][]int {
-	_mtx.Lock()
-	defer _mtx.Unlock()
-	LocalMatrix = master_slave_fsm.InitLocalMatrix()
-	LocalMatrix[master_slave_fsm.UP_BUTTON][master_slave_fsm.IP] = master_slave_fsm.LocalIP
-	LocalMatrix[master_slave_fsm.UP_BUTTON][master_slave_fsm.DIR] = int(elevio.MD_Stop)
-	fmt.Println("initElevatorMatrix: NOT POLLING FLOOR SENSOR")
-	LocalMatrix[master_slave_fsm.UP_BUTTON][master_slave_fsm.FLOOR] = 2 //<-ch_floorSensor
-	LocalMatrix[master_slave_fsm.UP_BUTTON][master_slave_fsm.ELEV_STATE] = int(fsm.IDLE)
-	LocalMatrix[master_slave_fsm.UP_BUTTON][master_slave_fsm.SLAVE_MASTER] = int(master_slave_fsm.MASTER)
 }

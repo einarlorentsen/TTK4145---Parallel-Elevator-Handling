@@ -36,7 +36,7 @@ func StringToNumbers(str string) []int {
 func ReadFile(filename string) [][]int {
 	matrix := make([][]int, 0)  // Init empty 2D slice
 	matrixRow := make([]int, 0) // Init empty 1D slice
-
+	fmt.Println("Reading file...")
 	file, err := os.Open(filename) // Read backupfile
 	if err != nil {
 		return matrix // Return empty array if no file
@@ -49,6 +49,7 @@ func ReadFile(filename string) [][]int {
 		matrixRow = StringToNumbers(scanner.Text())
 		matrix = append(matrix, matrixRow) // Append row to 2D slice
 	}
+	fmt.Println("Successfully read file!")
 	return matrix
 }
 
