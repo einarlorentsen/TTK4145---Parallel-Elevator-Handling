@@ -12,32 +12,33 @@ import (
 )
 
 var _mtx sync.Mutex
-var cabOrders []int
-var LocalMatrix [][]int
 
-func InitCabOrders(fromBackup []int) {
-	// for i := 0; i < constant.N_FLOORS; i++ {
-	// 	if len(fromBackup) > i {
-	// 		cabOrders = append(cabOrders, fromBackup[i])
-	// 	} else {
-	// 		cabOrders = append(cabOrders, 0)
-	// 	}
-	// }
+//
+// var localMatrix [][]int
+
+func InitCabOrders(fromBackup []int) []int {
+	var cabOrders []int
 	for i := 0; i < constant.N_FLOORS; i++ {
-		cabOrders = append(cabOrders, 0)
+		if len(fromBackup) > i {
+			cabOrders = append(cabOrders, fromBackup[i])
+		} else {
+			cabOrders = append(cabOrders, 0)
+		}
 	}
+	// for i := 0; i < constant.N_FLOORS; i++ {
+	// 	cabOrders = append(cabOrders, 0)
+	// }
+	return cabOrders
 }
 
-func InitLocalElevatorMatrix() {
-	_mtx.Lock()
-	defer _mtx.Unlock()
-	LocalMatrix = master_slave_fsm.InitLocalMatrix()
-	LocalMatrix[constant.UP_BUTTON][constant.IP] = master_slave_fsm.LocalIP
-	LocalMatrix[constant.UP_BUTTON][constant.DIR] = int(elevio.MD_Stop)
-	fmt.Println("initElevatorMatrix: NOT POLLING FLOOR SENSOR")
-	LocalMatrix[constant.UP_BUTTON][constant.FLOOR] = 2 //<-ch_floorSensor
-	LocalMatrix[constant.UP_BUTTON][constant.ELEV_STATE] = int(constant.IDLE)
-	LocalMatrix[constant.UP_BUTTON][constant.SLAVE_MASTER] = int(constant.MASTER)
+func InitLocalElevatorMatrix() [][]int {
+	localMatrix := master_slave_fsm.InitLocalMatrix()
+	localMatrix[constant.UP_BUTTON][constant.IP] = master_slave_fsm.LocalIP
+	localMatrix[constant.UP_BUTTON][constant.DIR] = int(elevio.MD_Stop)
+	localMatrix[constant.UP_BUTTON][constant.FLOOR] = elevio.GetFloorInit()
+	localMatrix[constant.UP_BUTTON][constant.ELEV_STATE] = int(constant.IDLE)
+	localMatrix[constant.UP_BUTTON][constant.SLAVE_MASTER] = int(constant.MASTER)
+	return localMatrix
 }
 
 /* Polls all buttons and sends recieved orders out on their respective channels */
@@ -60,21 +61,25 @@ func UpdateOrderMatrix(ch_hallOrder chan<- elevio.ButtonEvent, ch_cabOrder chan<
 }
 
 //Recieves the floor that has a set cab order and sets the flag in that floor
-func updateCabOrders(ch_cabOrder <-chan int) {
+func UpdateCabOrders(ch_cabOrder <-chan elevio.ButtonEvent, ch_cabServed <-chan elevio.ButtonEvent, cabOrders []int) {
 	var tmpBackup [][]int
+	tmpBackup = append(tmpBackup, cabOrders)
 	for {
-		index := <-ch_cabOrder
-		_mtx.Lock()
-		cabOrders[index] = 1
-		tmpBackup = append(tmpBackup, cabOrders)
-		_mtx.Unlock()
+		select {
+		case buttonEvent := <-ch_cabOrder:
+			cabOrders[buttonEvent.Floor] = 1
+			fmt.Println("updateCabOrders: Added cabOrder floor: ", buttonEvent.Floor)
+		case buttonEvent := <-ch_cabServed:
+			cabOrders[buttonEvent.Floor] = 0
+			fmt.Println("updateCabOrders: Deleted cabOrder floor: ", buttonEvent.Floor)
+		}
+		setCabLights(cabOrders)
+		tmpBackup[0] = cabOrders
 		file_IO.WriteFile(constant.BACKUP_FILENAME, tmpBackup)
-		setCabLights()
-
 	}
 }
 
-func setCabLights() {
+func setCabLights(cabOrders []int) {
 	for floor := 0; floor < len(cabOrders); floor++ {
 		if cabOrders[floor] == 1 {
 			elevio.SetButtonLamp(elevio.BT_Cab, floor, true)
@@ -98,31 +103,4 @@ func setHallLights(matrixMaster [][]int) {
 			elevio.SetButtonLamp(elevio.BT_HallDown, int(constant.FIRST_FLOOR)-index, false)
 		}
 	}
-}
-
-/* Listens on updates from elevator fsm and updates the elevators local matrix */
-func ListenElevator(ch_elevTx chan<- [][]int, ch_dir <-chan constant.FIELD, ch_floor <-chan constant.FIELD, ch_state <-chan constant.STATE, ch_hallOrder <-chan elevio.ButtonEvent) {
-	for {
-		fmt.Println("ListenElevator: Waiting on updates.")
-		select {
-		case dir := <-ch_dir:
-			writeLocalMatrix(ch_elevTx, int(constant.UP_BUTTON), int(constant.DIR), int(dir))
-		case floor := <-ch_floor:
-			writeLocalMatrix(ch_elevTx, int(constant.UP_BUTTON), int(constant.FLOOR), int(floor))
-		case state := <-ch_state:
-			writeLocalMatrix(ch_elevTx, int(constant.UP_BUTTON), int(constant.ELEV_STATE), int(state))
-		case hallOrder := <-ch_hallOrder:
-			if hallOrder.Button == elevio.BT_HallUp {
-				writeLocalMatrix(ch_elevTx, int(constant.UP_BUTTON), int(constant.FIRST_FLOOR)+hallOrder.Floor, 1)
-			} else if hallOrder.Button == elevio.BT_HallDown {
-				writeLocalMatrix(ch_elevTx, int(constant.DOWN_BUTTON), int(constant.FIRST_FLOOR)+hallOrder.Floor, 1)
-			}
-		}
-	}
-}
-func writeLocalMatrix(ch_elevTx chan<- [][]int, row int, col int, value int) {
-	_mtx.Lock()
-	defer _mtx.Unlock()
-	LocalMatrix[row][col] = value
-	ch_elevTx <- LocalMatrix
 }
