@@ -8,7 +8,6 @@ import (
 	"../file_IO"
 	"../master_slave_fsm"
 	"./elevio"
-	"./fsm"
 	"./order_handler"
 )
 
@@ -32,9 +31,9 @@ func InitElevator(ch_elevTransmit chan<- [][]int, ch_elevRecieve <-chan [][]int)
 	ch_cabOrder := make(chan elevio.ButtonEvent)  // Cab orders sent over channel
 	ch_dir := make(chan constant.FIELD)           // Channel for DIR updates
 	ch_floor := make(chan constant.FIELD)         // Channel for FLOOR updates
-	ch_state := make(chan fsm.STATE)              // Channel for STATE updates
+	ch_state := make(chan constant.STATE)         // Channel for STATE updates
 
-	order_handler.InitLocalElevatorMatrix()
+	// order_handler.InitLocalElevatorMatrix()	// Init in fsm.initFSM
 
 	cabOrdersBackup := file_IO.ReadFile(constant.BACKUP_FILENAME) // Matrix
 	if len(cabOrdersBackup) == 0 {

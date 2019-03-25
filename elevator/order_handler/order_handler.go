@@ -8,7 +8,6 @@ import (
 	"../../file_IO"
 	"../../master_slave_fsm"
 	"../elevio"
-	"../fsm"
 	// "github.com/kentare/exercise-4-pipeline/elevio"
 )
 
@@ -37,7 +36,7 @@ func InitLocalElevatorMatrix() {
 	LocalMatrix[constant.UP_BUTTON][constant.DIR] = int(elevio.MD_Stop)
 	fmt.Println("initElevatorMatrix: NOT POLLING FLOOR SENSOR")
 	LocalMatrix[constant.UP_BUTTON][constant.FLOOR] = 2 //<-ch_floorSensor
-	LocalMatrix[constant.UP_BUTTON][constant.ELEV_STATE] = int(fsm.IDLE)
+	LocalMatrix[constant.UP_BUTTON][constant.ELEV_STATE] = int(constant.IDLE)
 	LocalMatrix[constant.UP_BUTTON][constant.SLAVE_MASTER] = int(constant.MASTER)
 }
 
@@ -102,7 +101,7 @@ func setHallLights(matrixMaster [][]int) {
 }
 
 /* Listens on updates from elevator fsm and updates the elevators local matrix */
-func ListenElevator(ch_elevTx chan<- [][]int, ch_dir <-chan constant.FIELD, ch_floor <-chan constant.FIELD, ch_state <-chan fsm.STATE, ch_hallOrder <-chan elevio.ButtonEvent) {
+func ListenElevator(ch_elevTx chan<- [][]int, ch_dir <-chan constant.FIELD, ch_floor <-chan constant.FIELD, ch_state <-chan constant.STATE, ch_hallOrder <-chan elevio.ButtonEvent) {
 	for {
 		fmt.Println("ListenElevator: Waiting on updates.")
 		select {

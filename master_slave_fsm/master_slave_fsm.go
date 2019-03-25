@@ -11,7 +11,6 @@ import (
 	"../constant"
 
 	"../elevator/elevio"
-	"../elevator/fsm"
 	"../file_IO"
 	"../network/bcast"
 	"../network/localip"
@@ -292,6 +291,9 @@ func InitLocalMatrix() [][]int {
 		localMatrix = append(localMatrix, make([]int, 5+constant.N_FLOORS))
 	}
 	localMatrix[constant.UP_BUTTON][constant.IP] = LocalIP
+	localMatrix[constant.UP_BUTTON][constant.DIR] = int(elevio.MD_Stop)
+	localMatrix[constant.UP_BUTTON][constant.FLOOR] = elevio.GetFloorInit()
+	localMatrix[constant.UP_BUTTON][constant.ELEV_STATE] = int(constant.IDLE)
 	return localMatrix
 }
 
@@ -311,16 +313,6 @@ func checkMaster(matrix [][]int) constant.STATE {
 	}
 
 	return constant.MASTER //
-	// rows := len(matrix)
-	// for row := int(constant.FIRST_ELEV); row < rows; row++ {
-	// 	if matrix[row][constant.SLAVE_MASTER] == int(constant.MASTER) {
-	// 		if matrix[row][constant.IP] > LocalIP {
-	// 			fmt.Println("matrix[row][IP] = ", matrix[row][constant.IP], ". LocalIP = ", LocalIP)
-	// 			return constant.MASTER // Remain master
-	// 		}
-	// 	}
-	// }
-	// return constant.SLAVE // Transition SLAVE
 }
 
 func InitMatrixMaster() [][]int {
@@ -328,17 +320,10 @@ func InitMatrixMaster() [][]int {
 	for i := 0; i <= 2; i++ { // For 1 elevator, master is assumed alone
 		matrixMaster = append(matrixMaster, make([]int, 5+constant.N_FLOORS))
 	}
-	// ch_floorSensor := make(chan int)
-
-	fmt.Println(matrixMaster)
-
-	// TODO REMOVE WHEN AT LAB AND HAS HARDWARE / SIMULATOR
-	// elevio.GetFloorInit(ch_floorSensor)
-	// ch_floorSensor <- 2 // Dummy for when elevator is not present
 	matrixMaster[constant.FIRST_ELEV][constant.IP] = LocalIP
 	matrixMaster[constant.FIRST_ELEV][constant.DIR] = int(elevio.MD_Stop)
-	matrixMaster[constant.FIRST_ELEV][constant.FLOOR] = 2 //<-ch_floorSensor
-	matrixMaster[constant.FIRST_ELEV][constant.ELEV_STATE] = int(fsm.IDLE)
+	matrixMaster[constant.FIRST_ELEV][constant.FLOOR] = elevio.GetFloorInit()
+	matrixMaster[constant.FIRST_ELEV][constant.ELEV_STATE] = int(constant.IDLE)
 	matrixMaster[constant.FIRST_ELEV][constant.SLAVE_MASTER] = int(constant.MASTER)
 	return matrixMaster
 }
@@ -477,10 +462,10 @@ func checkOrderServed(matrixMaster [][]int, recievedMatrix [][]int) [][]int {
 	return matrixMaster
 }
 func checkStoppedOrDoorsOpen(recievedMatrix [][]int) bool {
-	if recievedMatrix[constant.UP_BUTTON][constant.ELEV_STATE] == int(fsm.STOP) {
+	if recievedMatrix[constant.UP_BUTTON][constant.ELEV_STATE] == int(constant.STOP) {
 		return true
 	}
-	if recievedMatrix[constant.UP_BUTTON][constant.ELEV_STATE] == int(fsm.DOORS_OPEN) {
+	if recievedMatrix[constant.UP_BUTTON][constant.ELEV_STATE] == int(constant.DOORS_OPEN) {
 		return true
 	}
 	return false
@@ -519,7 +504,7 @@ func clearCurrentOrders(matrix [][]int) [][]int {
 
 /* Order distribution algorithm */
 func calculateElevatorStops(matrix [][]int) [][]int {
-	fmt.Println("Calculate stops")
+	fmt.Println("calculateElevatorStops: Calculate stops")
 	var flagOrderSet bool
 	rowLength := len(matrix[constant.UP_BUTTON])
 	colLength := len(matrix)
@@ -531,8 +516,8 @@ func calculateElevatorStops(matrix [][]int) [][]int {
 			//Sjekker om jeg har en heis i etasjen
 			for elev := int(constant.FIRST_ELEV); elev < colLength; elev++ {
 				// If in floor, give order if elevator is idle, stopped or has doors open
-				if matrix[elev][constant.FLOOR] == floor && (matrix[elev][constant.ELEV_STATE] == int(fsm.IDLE) ||
-					matrix[elev][constant.ELEV_STATE] == int(fsm.STOP) || matrix[elev][constant.ELEV_STATE] == int(fsm.DOORS_OPEN)) {
+				if matrix[elev][constant.FLOOR] == floor && (matrix[elev][constant.ELEV_STATE] == int(constant.IDLE) ||
+					matrix[elev][constant.ELEV_STATE] == int(constant.STOP) || matrix[elev][constant.ELEV_STATE] == int(constant.DOORS_OPEN)) {
 					matrix[elev][floor] = 1 // Stop here
 					flagOrderSet = true
 					break
@@ -629,7 +614,7 @@ func calculateElevatorStops(matrix [][]int) [][]int {
 
 		} // End order condition
 	} // End inf loop
-	fmt.Println("SHIIIET")
+	fmt.Println("calculateElevatorStops: Orders calculated.")
 	return matrix
 } // End floor loop
 

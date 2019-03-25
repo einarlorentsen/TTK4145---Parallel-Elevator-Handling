@@ -108,8 +108,8 @@ func PollFloorSensor(receiver chan<- int) {
 	}
 }
 
-func GetFloorInit(receiver chan<- int) {
-	receiver <- getFloor()
+func GetFloorInit() int {
+	return getFloor()
 }
 
 // func PollStopButton(receiver chan<- bool) {
