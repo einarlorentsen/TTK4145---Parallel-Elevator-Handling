@@ -18,8 +18,29 @@ func UpdateOrderMatrix(ch_hallOrder chan<- elevio.ButtonEvent, ch_cabOrder chan<
 			} else {
 				ch_hallOrder <- order
 			}
-
 		}
 	}
+}
 
+//Recieves the floor that has a set cab order and sets the flag in that floor
+func updateCabOrders(cabOrders[]int){
+	for{
+		index := <-ch_cabOrder
+		cabOrder[index] = 1
+	}
+}
+
+func setLights(matrixMaster[][]int){
+	for index = FIRST_FLOOR; index < len(masterMatrix[UP_BUTTON]); row++{
+		if masterMatrix[UP_BUTTON][index] == 1{
+			SetButtonLamp(BT_HallUp,index-FIRST_FLOOR,true)
+		}
+
+		elseif masterMatrix[UP_BUTTON][index] == 0
+
+		if masterMatrix[DOWN_BUTTON][index] == 1{
+			SetButtonLamp(button ButtonType, floor int, value bool)
+		}
+		elseif masterMatrix[DOWN_BUTTON][index] == 0
+	}
 }
