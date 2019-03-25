@@ -26,7 +26,10 @@ func UpdateOrderMatrix(ch_hallOrder chan<- elevio.ButtonEvent, ch_cabOrder chan<
 func updateCabOrders(cabOrders[]int){
 	for{
 		index := <-ch_cabOrder
+		_mtx.Lock()
 		cabOrder[index] = 1
+		defer _mtx.Unlock()
+
 	}
 }
 
@@ -34,13 +37,14 @@ func setLights(matrixMaster[][]int){
 	for index = FIRST_FLOOR; index < len(masterMatrix[UP_BUTTON]); row++{
 		if masterMatrix[UP_BUTTON][index] == 1{
 			SetButtonLamp(BT_HallUp,index-FIRST_FLOOR,true)
+		} else if masterMatrix[UP_BUTTON][index] == 0{
+			SetButtonLamp(BT_HallUp,index-FIRST_FLOOR,false)
 		}
-
-		elseif masterMatrix[UP_BUTTON][index] == 0
 
 		if masterMatrix[DOWN_BUTTON][index] == 1{
-			SetButtonLamp(button ButtonType, floor int, value bool)
+			SetButtonLamp(BT_Hall_Down, FIRST_FLOOR-index, true)
+		} else if masterMatrix[DOWN_BUTTON][index] == 0{
+				SetButtonLamp(BT_Hall_Down, FIRST_FLOOR-index, false)
 		}
-		elseif masterMatrix[DOWN_BUTTON][index] == 0
 	}
 }
