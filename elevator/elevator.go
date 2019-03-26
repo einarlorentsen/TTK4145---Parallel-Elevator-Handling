@@ -94,7 +94,7 @@ func writeLocalMatrix(ch_elevTx chan<- [][]int, row int, col int, value int) {
 	// ch_elevTx <- localMatrix
 }
 
-func indexFinder(matrixMaster [][]int) int {
+func IndexFinder(matrixMaster [][]int) int {
 	rows := len(matrixMaster)
 	for index := 0; index < rows; index++ {
 		if matrixMaster[index][constant.IP] == master_slave_fsm.LocalIP {

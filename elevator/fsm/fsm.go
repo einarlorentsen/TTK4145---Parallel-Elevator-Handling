@@ -23,7 +23,7 @@ func InitFSM() {
 	elevio.SetMotorDirection(elevio.MD_Stop)
 }
 
-func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_dirTx chan<- constant.FIELD, ch_floorTx chan<- int, ch_stateTx chan<- constant.STATE) {
+func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_dirTx chan<- int, ch_floorTx chan<- int, ch_stateTx chan<- constant.STATE) {
 	var lastElevDir elevio.MotorDirection
 	var newElevDir elevio.MotorDirection
 	var localState constant.STATE
@@ -39,6 +39,9 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 	for {
 		switch localState {
 		case constant.IDLE:
+			elevio.SetMotorDirection(elevio.MD_Stop)
+			ch_dirTx <- int(elevio.MD_Stop)
+			ch_stateTx <- localState
 			// Let igjennom cabOrders og masterMatrix etter bestillinger. Vi foretrekker bestillinger
 			// i forrige registrerte retning.
 			// Hvis vi finner en bestilling sett retning til opp eller ned utifra hvor bestillingen er
@@ -52,41 +55,104 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 				default:
 					newElevDir = checkQueue(currentFloor, lastElevDir, matrixMaster, cabOrders)
 					if newElevDir == elevio.MD_Stop {
+						ch_dirTx <- int(newElevDir)
 						localState = constant.DOORS_OPEN
 					} else if newElevDir != elevio.MD_Idle {
 						lastElevDir = newElevDir
+						ch_dirTx <- int(newElevDir)
 						localState = constant.MOVE
 					}
+				}
+				if localState != constant.IDLE {
+					break // Break the for-select loop
 				}
 			}
 
 		case constant.MOVE:
+			elevio.SetMotorDirection(newElevDir)
+			ch_stateTx <- localState
 			for {
 				select {
+				case updateMatrixMaster := <-ch_matrixMasterRx:
+					matrixMaster = updateMatrixMaster
+				case updateCabOrders := <-ch_cabOrderRx:
+					cabOrders = updateCabOrders
 				case floor := <-ch_floorRx:
+					currentFloor = floor
+					newElevDir = checkQueue(currentFloor, lastElevDir, matrixMaster, cabOrders)
+					if newElevDir == elevio.MD_Stop {
+						localState = constant.STOP
+						ch_dirTx <- int(newElevDir)
+					} else if newElevDir != elevio.MD_Idle {
+						lastElevDir = newElevDir
+						localState = constant.MOVE
+						elevio.SetMotorDirection(newElevDir)
+						ch_dirTx <- int(newElevDir)
+					} else if newElevDir == elevio.MD_Idle {
+						localState = constant.IDLE
+					}
+					ch_floorTx <- floor // Send floor to higher layers in the hierarchy
 					// Når jeg kommer til en etasje, sjekk om jeg har en bestilling her i CAB eller matrixMaster.
 					// Hvis ja - hopp til STOPP state. Hvis nei, sjekk om jeg har en bestilling videre i retningen jeg
 					// kjører. Hvis ja, fortsett i MOVE med samme retning. Hvi jeg kun har en bestilling
 					// i feil retning, skift retning, hvis jeg ikke har noen bestillinger, sett motorRetning
 					// til stopp og hopp til IDLE state.
-					ch_floorTx <- floor
-				case cabOrders = <-ch_cabOrderRx:
+				}
+				if localState != constant.MOVE {
+					break
 				}
 			}
 
 		case constant.STOP:
+			newElevDir = elevio.MD_Stop
+			ch_stateTx <- localState
+			ch_dirTx <- int(newElevDir)
+			elevio.SetMotorDirection(elevio.MD_Stop)
+			localState = constant.DOORS_OPEN
 
 		case constant.DOORS_OPEN:
+			ch_stateTx <- localState
+			elevio.SetDoorOpenLamp(true)
+			cabOrders[currentFloor] = 0
+			index := elevator.IndexFinder(matrixMaster)
+			for{
+				select{
+				case updateMatrixMaster := <-ch_matrixMasterRx:
+					matrixMaster = updateMatrixMaster
+					index = elevator.IndexFinder(matrixMaster)
+				case updateCabOrders := <-ch_cabOrderRx:
+					cabOrders = updateCabOrders
+				case cabOrders[currentFloor] == 1:
+					
+				default:
+					if (cabOrders[currentFloor] == 0 && cabOrders[currentFloor] == matrixMaster[index][int(constant.FIRST_FLOOR) + currentFloor])
+
+
+				}
+
+			}
 			// Åpne dørene og hold de åpne så lenge som nødvendig.
 			// Slukk CAB lys for denne etasjen
 			// Når timeren som holder døren åpen går ut, hopp til DOORS_CLOSED
 
 		case constant.DOORS_CLOSED:
-			// Lukk døren
-			// Hopp til IDLE state
+			// Lytt til master - åpne døra. Når du ser at bestillingen er
+			//betjent i matrixMaster og CAB (altså at begge er null)
+			//start timer og dukker det opp 1 i maatrixMaster eller cab,
+			//slett timer og hold døra åpen
 		}
 	}
 }
+
+func checkCurrentFloor(row int, currentFloor int, matrixMaster [][]int, cabOrders []int) elevio.MotorDirection {
+	if matrixMaster[row][constant.IP] == master_slave_fsm.LocalIP { //Check if order in current floor
+		if matrixMaster[row][int(constant.FIRST_FLOOR)+currentFloor] == 1 || cabOrders[currentFloor] == 1 {
+			return elevio.MD_Stop
+		}
+	}
+	return elevio.MD_Idle
+}
+
 func checkQueue(currentFloor int, lastElevDir elevio.MotorDirection, matrixMaster [][]int, cabOrders []int) elevio.MotorDirection {
 	var direction elevio.MotorDirection = elevio.MD_Idle
 
