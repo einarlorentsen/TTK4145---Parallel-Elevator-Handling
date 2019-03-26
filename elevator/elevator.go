@@ -2,7 +2,6 @@ package elevator
 
 import (
 	"fmt"
-	"sync"
 
 	"../constant"
 	"../file_IO"
@@ -11,18 +10,19 @@ import (
 	"./order_handler"
 )
 
-var _mtx sync.Mutex
 var elevIndex int
 
 // var LocalMatrix [][]int
 
 /* */
 func InitElevator(ch_elevTransmit chan<- [][]int, ch_elevRecieve <-chan [][]int) {
+	ch_matrixMasterRx := make(chan [][]int)
 	ch_hallOrder := make(chan elevio.ButtonEvent) // Hall orders sent over channel
 	ch_cabOrder := make(chan elevio.ButtonEvent)  // Cab orders sent over channel
 	ch_cabServed := make(chan elevio.ButtonEvent)
-	ch_dir := make(chan constant.FIELD)   // Channel for DIR updates
-	ch_floor := make(chan constant.FIELD) // Channel for FLOOR updates
+	ch_cabOrderArray := make(chan []int)
+	ch_dir := make(chan int)              // Channel for DIR updates
+	ch_floor := make(chan int)            // Channel for FLOOR updates
 	ch_state := make(chan constant.STATE) // Channel for STATE updates
 	var cabOrders []int
 	var localMatrix [][]int
@@ -33,33 +33,35 @@ func InitElevator(ch_elevTransmit chan<- [][]int, ch_elevRecieve <-chan [][]int)
 		fmt.Println("No backups found.")
 		cabOrders = order_handler.InitCabOrders([]int{})
 	} else {
-		fmt.Println("Backup found.") /*  */
-		_mtx.Lock()
+		fmt.Println("Backup found.")
 		cabOrders = order_handler.InitCabOrders(cabOrdersBackup[0])
 	}
 
 	localMatrix = order_handler.InitLocalElevatorMatrix()
-
 	// Button updates over their respective channels
 	go order_handler.UpdateOrderMatrix(ch_hallOrder, ch_cabOrder)
 	// Listen for elevator updates, send the update to master/slave module.
 	go order_handler.UpdateCabOrders(ch_cabOrder, ch_cabServed, cabOrders)
-	elevatorHandler(localMatrix, ch_elevTransmit, ch_elevRecieve, ch_dir, ch_floor, ch_state, ch_hallOrder)
+
+	// ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_dirTx chan<- int, ch_floorTx chan<- int, ch_stateTx chan<- constant.STATE
+
+	go fsm.ElevFSM(ch_matrixMasterRx, ch_cabOrderArray, ch_dir, ch_floor, ch_state)
+
+	elevatorHandler(localMatrix, ch_matrixMasterRx, ch_elevTransmit, ch_elevRecieve, ch_dir, ch_floor, ch_state, ch_hallOrder)
 }
 
 /* Listens on updates from elevator fsm and updates the elevators local matrix */
-func elevatorHandler(localMatrix [][]int, ch_elevTx chan<- [][]int, ch_elevRx <-chan [][]int, ch_dir <-chan constant.FIELD, ch_floor <-chan constant.FIELD, ch_state <-chan constant.STATE, ch_hallOrder <-chan elevio.ButtonEvent) {
-	var lastMatrixMaster [][]int
+func elevatorHandler(localMatrix [][]int, ch_matrixMasterTx chan<- [][]int, ch_elevTx chan<- [][]int, ch_elevRx <-chan [][]int, ch_dir <-chan int, ch_floor <-chan int, ch_state <-chan constant.STATE, ch_hallOrder <-chan elevio.ButtonEvent) {
 	for {
 		fmt.Println("ListenElevator: Waiting on updates.")
 		select {
-		case matrixMaster := <-ch_elevRx:
-			lastMatrixMaster = matrixMaster
-			currentIndex := fsm.IndexFinder(matrixMaster)
-		// Check stops
-		// for floors
-		// Read orders, distribute
-		//
+		case matrixMaster := <-ch_elevRx: // Send new matrixMaster to elevator fsm
+			localMatrix = confirmOrders(matrixMaster, localMatrix)
+			ch_elevTx <- localMatrix
+			// Motta master -> Sammenlikne ordre med local (unconfirmed)
+			// Fjern de som er delt med master
+
+			ch_matrixMasterTx <- matrixMaster
 		case dir := <-ch_dir: // Changed direction
 			localMatrix = writeLocalMatrix(ch_elevTx, localMatrix, int(constant.UP_BUTTON), int(constant.DIR), int(dir))
 		case floor := <-ch_floor: // Arrived at floor
@@ -75,54 +77,22 @@ func elevatorHandler(localMatrix [][]int, ch_elevTx chan<- [][]int, ch_elevRx <-
 				localMatrix = writeLocalMatrix(ch_elevTx, localMatrix, int(constant.DOWN_BUTTON), int(constant.FIRST_FLOOR)+hallOrder.Floor, 1)
 			}
 		}
-		// Send localmatrix to master/slave through ch_elevTx
 	}
 }
+
 func writeLocalMatrix(ch_elevTx chan<- [][]int, localMatrix [][]int, row int, col int, value int) [][]int {
 	localMatrix[row][col] = value
-	ch_elevTx <- localMatrix
+	ch_elevTx <- localMatrix // Send to master/slave module
 	return localMatrix
 }
 
-// func IndexFinder(matrixMaster [][]int) int {
-// 	rows := len(matrixMaster)
-// 	for index := 0; index < rows; index++ {
-// 		if matrixMaster[index][constant.IP] == master_slave_fsm.LocalIP {
-// 			return index
-// 		}
-// 	}
-// 	return -1
-// }
-
-// func updateMasterMatrix(ch_elevRecieve <-chan [][]int, ch_copyMatrixMaster chan<- [][]int) {
-// 	var copyMatrixMaster [][]int = master_slave_fsm.InitMatrixMaster()
-// 	var recievedMatrix [][]int
-// 	for {
-// 		select {
-// 		case recievedMatrix = <-ch_elevRecieve:
-// 			if checkMatrixUpdate(recievedMatrix, copyMatrixMaster) == true {
-// 				copyMatrixMaster = recievedMatrix
-// 				_mtx.Lock()
-// 				elevIndex = indexFinder(copyMatrixMaster)
-// 				_mtx.Unlock()
-// 				ch_copyMatrixMaster <- copyMatrixMaster
-//
-// 			}
-// 		default:
-// 			//Do absolutly nothing
-// 		}
-// 	}
-// }
-//
-// func checkMatrixUpdate(currentMatrix [][]int, prevMatrix [][]int) bool {
-// 	rowLength := len(currentMatrix)
-// 	colLength := len(currentMatrix[0])
-// 	for row := 0; row < rowLength; row++ {
-// 		for col := 0; col < colLength; col++ {
-// 			if currentMatrix[row][col] != prevMatrix[row][col] {
-// 				return true
-// 			}
-// 		}
-// 	}
-// 	return false
-// }
+func confirmOrders(matrixMaster [][]int, localMatrix [][]int) [][]int {
+	for row := constant.UP_BUTTON; row <= constant.DOWN_BUTTON; row++ {
+		for col := int(constant.FIRST_FLOOR); col < len(matrixMaster[0]); col++ {
+			if matrixMaster[row][col] == 1 {
+				localMatrix[row][col] = 0
+			}
+		}
+	}
+	return localMatrix
+}

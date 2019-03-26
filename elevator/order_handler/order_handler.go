@@ -2,7 +2,6 @@ package order_handler
 
 import (
 	"fmt"
-	"sync"
 
 	"../../constant"
 	"../../file_IO"
@@ -10,8 +9,6 @@ import (
 	"../elevio"
 	// "github.com/kentare/exercise-4-pipeline/elevio"
 )
-
-var _mtx sync.Mutex
 
 //
 // var localMatrix [][]int
