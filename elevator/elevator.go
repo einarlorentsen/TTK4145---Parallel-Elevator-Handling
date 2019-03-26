@@ -6,7 +6,6 @@ import (
 
 	"../constant"
 	"../file_IO"
-	"../master_slave_fsm"
 	"./elevio"
 	"./order_handler"
 )
@@ -15,15 +14,6 @@ var _mtx sync.Mutex
 var elevIndex int
 
 // var LocalMatrix [][]int
-
-/* Set lights */
-
-/* Current floor light */
-func CurrentFloorLight(floor int) {
-	if floor != -1 {
-		elevio.SetFloorIndicator(floor)
-	}
-}
 
 /* */
 func InitElevator(ch_elevTransmit chan<- [][]int, ch_elevRecieve <-chan [][]int) {
@@ -94,15 +84,15 @@ func writeLocalMatrix(ch_elevTx chan<- [][]int, row int, col int, value int) {
 	// ch_elevTx <- localMatrix
 }
 
-func IndexFinder(matrixMaster [][]int) int {
-	rows := len(matrixMaster)
-	for index := 0; index < rows; index++ {
-		if matrixMaster[index][constant.IP] == master_slave_fsm.LocalIP {
-			return index
-		}
-	}
-	return -1
-}
+// func IndexFinder(matrixMaster [][]int) int {
+// 	rows := len(matrixMaster)
+// 	for index := 0; index < rows; index++ {
+// 		if matrixMaster[index][constant.IP] == master_slave_fsm.LocalIP {
+// 			return index
+// 		}
+// 	}
+// 	return -1
+// }
 
 // func updateMasterMatrix(ch_elevRecieve <-chan [][]int, ch_copyMatrixMaster chan<- [][]int) {
 // 	var copyMatrixMaster [][]int = master_slave_fsm.InitMatrixMaster()

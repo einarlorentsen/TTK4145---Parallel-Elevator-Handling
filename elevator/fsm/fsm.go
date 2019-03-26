@@ -1,15 +1,12 @@
 package fsm
 
 import (
-	"sync"
+	"time"
 
 	"../../constant"
 	"../../master_slave_fsm"
 	"../elevio"
 )
-
-// var ElevState constant.STATE
-var _mtx_dir sync.Mutex
 
 /* Initialize the elevator and stop at first floor above our starting position */
 func InitFSM() {
@@ -20,6 +17,7 @@ func InitFSM() {
 		elevio.SetMotorDirection(elevio.MD_Up)
 		currFloor = <-ch_floor
 	}
+	elevio.SetFloorIndicator(currFloor)
 	elevio.SetMotorDirection(elevio.MD_Stop)
 }
 
@@ -31,6 +29,7 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 	ch_floorRx := make(chan int)
 	cabOrders := make([]int, constant.N_FLOORS)
 	currentFloor := elevio.GetFloorInit()
+	elevio.SetFloorIndicator(currentFloor)
 
 	lastElevDir = elevio.MD_Up // After initialization
 
@@ -79,6 +78,7 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 					cabOrders = updateCabOrders
 				case floor := <-ch_floorRx:
 					currentFloor = floor
+					go elevio.SetFloorIndicator(currentFloor)
 					newElevDir = checkQueue(currentFloor, lastElevDir, matrixMaster, cabOrders)
 					if newElevDir == elevio.MD_Stop {
 						localState = constant.STOP
@@ -111,35 +111,43 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 			localState = constant.DOORS_OPEN
 
 		case constant.DOORS_OPEN:
+			ch_timerKill := make(chan bool)
+			ch_timerFinished := make(chan bool)
+			go doorTimer(ch_timerKill, ch_timerFinished)
+			flagTimerActive := true
 			ch_stateTx <- localState
 			elevio.SetDoorOpenLamp(true)
 			cabOrders[currentFloor] = 0
-			index := elevator.IndexFinder(matrixMaster)
-			for{
-				select{
+			index := IndexFinder(matrixMaster)
+			for {
+				select {
 				case updateMatrixMaster := <-ch_matrixMasterRx:
 					matrixMaster = updateMatrixMaster
-					index = elevator.IndexFinder(matrixMaster)
+					index = IndexFinder(matrixMaster)
 				case updateCabOrders := <-ch_cabOrderRx:
 					cabOrders = updateCabOrders
-				case cabOrders[currentFloor] == 1:
-					
+				case <-ch_timerFinished:
+					elevio.SetDoorOpenLamp(false)
+					flagTimerActive = false
+					ch_stateTx <- localState
+					localState = constant.IDLE
+
 				default:
-					if (cabOrders[currentFloor] == 0 && cabOrders[currentFloor] == matrixMaster[index][int(constant.FIRST_FLOOR) + currentFloor])
-
-
+					if cabOrders[currentFloor] == 1 || matrixMaster[index][currentFloor] == 1 {
+						cabOrders[currentFloor] = 0
+						if flagTimerActive == true {
+							ch_timerKill <- true
+							flagTimerActive = false
+						}
+					}
+					if cabOrders[currentFloor] == 0 && cabOrders[currentFloor] == matrixMaster[index][int(constant.FIRST_FLOOR)+currentFloor] {
+						if flagTimerActive == false {
+							go doorTimer(ch_timerKill, ch_timerFinished)
+							flagTimerActive = true
+						}
+					}
 				}
-
 			}
-			// Åpne dørene og hold de åpne så lenge som nødvendig.
-			// Slukk CAB lys for denne etasjen
-			// Når timeren som holder døren åpen går ut, hopp til DOORS_CLOSED
-
-		case constant.DOORS_CLOSED:
-			// Lytt til master - åpne døra. Når du ser at bestillingen er
-			//betjent i matrixMaster og CAB (altså at begge er null)
-			//start timer og dukker det opp 1 i maatrixMaster eller cab,
-			//slett timer og hold døra åpen
 		}
 	}
 }
@@ -201,22 +209,25 @@ func checkBelow(row int, currentFloor int, matrixMaster [][]int, cabOrders []int
 	return elevio.MD_Idle
 }
 
-// func elevSetMotorDirection(direction elevio.MotorDirection) {
-// 	_mtx.Lock()
-// 	order_handler.LocalMatrix[constant.UP_BUTTON][constant.DIR] = int(direction)
-// 	_mtx.Unlock()
-// 	elevio.SetMotorDirection(direction)
-// }
-//
-// func elevSetFloor(floor int) {
-// 	_mtx.Lock()
-// 	order_handler.LocalMatrix[constant.UP_BUTTON][constant.FLOOR] = floor
-// 	_mtx.Unlock()
-// }
-//
-// func elevSetState(state constant.STATE) {
-// 	_mtx.Lock()
-// 	order_handler.LocalMatrix[constant.UP_BUTTON][constant.ELEV_STATE] = int(state)
-// 	ElevState = state
-// 	_mtx.Unlock()
-// }
+func doorTimer(timerKill <-chan bool, timerFinished chan<- bool) {
+	timer := time.NewTimer(3 * time.Second)
+	for {
+		select {
+		case <-timerKill:
+			return
+		case <-timer.C:
+			timerFinished <- true
+			return
+		}
+	}
+}
+
+func IndexFinder(matrixMaster [][]int) int {
+	rows := len(matrixMaster)
+	for index := 0; index < rows; index++ {
+		if matrixMaster[index][constant.IP] == master_slave_fsm.LocalIP {
+			return index
+		}
+	}
+	return -1
+}
