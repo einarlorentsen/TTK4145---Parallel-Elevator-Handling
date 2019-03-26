@@ -37,15 +37,20 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 	for {
 		switch localState {
 		case constant.IDLE:
-			// for select: cabOrder, matrixMaster
+			// Let igjennom cabOrders og masterMatrix etter bestillinger. Vi foretrekker bestillinger
+			// i forrige registrerte retning.
+			// Hvis vi finner en bestilling sett retning til opp eller ned utifra hvor bestillingen er
+			// og hopp til MOVE state. Hvis du finner en bestiling i etasjen du allerede er i - hopp til DOORS OPEN
 
 		case constant.MOVE:
 			for {
 				select {
 				case floor := <-ch_floorRx:
-					// Check cabOrder
-					// Check other orders (i.e. stop here or completely if no orders)
-					// Send floor signal
+					// Når jeg kommer til en etasje, sjekk om jeg har en bestilling her i CAB eller matrixMaster.
+					// Hvis ja - hopp til STOPP state. Hvis nei, sjekk om jeg har en bestilling videre i retningen jeg
+					// kjører. Hvis ja, fortsett i MOVE med samme retning. Hvi jeg kun har en bestilling
+					// i feil retning, skift retning, hvis jeg ikke har noen bestillinger, sett motorRetning
+					// til stopp og hopp til IDLE state.
 					ch_floorTx <- floor
 				case cabOrders = <-ch_cabOrderRx:
 				}
@@ -54,12 +59,13 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 		case constant.STOP:
 
 		case constant.DOORS_OPEN:
-			// for select: cabOrders -- Is handled by order_handler
-			// for select: matrixMaster
-			// check matrixMaster for new orders/stops
+			// Åpne dørene og hold de åpne så lenge som nødvendig.
+			// Slukk CAB lys for denne etasjen
+			// Når timeren som holder døren åpen går ut, hopp til DOORS_CLOSED
 
 		case constant.DOORS_CLOSED:
-			// ImmEDIATE TRANSISION
+			// Lukk døren
+			// Hopp til IDLE state
 		}
 	}
 }
