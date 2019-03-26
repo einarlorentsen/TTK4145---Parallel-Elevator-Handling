@@ -259,6 +259,7 @@ func InitLocalMatrix() [][]int {
 	localMatrix[constant.UP_BUTTON][constant.DIR] = int(elevio.MD_Stop)
 	localMatrix[constant.UP_BUTTON][constant.FLOOR] = elevio.GetFloorInit()
 	localMatrix[constant.UP_BUTTON][constant.ELEV_STATE] = int(constant.IDLE)
+	localMatrix[constant.UP_BUTTON][constant.SLAVE_MASTER] = int(flagMasterSlave)
 	return localMatrix
 }
 

@@ -7,6 +7,7 @@ import (
 	"../constant"
 	"../file_IO"
 	"./elevio"
+	"./fsm"
 	"./order_handler"
 )
 
@@ -54,34 +55,33 @@ func elevatorHandler(localMatrix [][]int, ch_elevTx chan<- [][]int, ch_elevRx <-
 		select {
 		case matrixMaster := <-ch_elevRx:
 			lastMatrixMaster = matrixMaster
-		// currentIndex := indexFinder(matrixMaster)
+			currentIndex := fsm.IndexFinder(matrixMaster)
 		// Check stops
 		// for floors
 		// Read orders, distribute
 		//
 		case dir := <-ch_dir: // Changed direction
-			writeLocalMatrix(ch_elevTx, int(constant.UP_BUTTON), int(constant.DIR), int(dir))
+			localMatrix = writeLocalMatrix(ch_elevTx, localMatrix, int(constant.UP_BUTTON), int(constant.DIR), int(dir))
 		case floor := <-ch_floor: // Arrived at floor
 			// Update to floor
 			// Update floor lights
-			writeLocalMatrix(ch_elevTx, int(constant.UP_BUTTON), int(constant.FLOOR), int(floor))
+			localMatrix = writeLocalMatrix(ch_elevTx, localMatrix, int(constant.UP_BUTTON), int(constant.FLOOR), int(floor))
 		case state := <-ch_state: // Changed state
-			writeLocalMatrix(ch_elevTx, int(constant.UP_BUTTON), int(constant.ELEV_STATE), int(state))
+			localMatrix = writeLocalMatrix(ch_elevTx, localMatrix, int(constant.UP_BUTTON), int(constant.ELEV_STATE), int(state))
 		case hallOrder := <-ch_hallOrder: // Recieved hall-order
 			if hallOrder.Button == elevio.BT_HallUp {
-				writeLocalMatrix(ch_elevTx, int(constant.UP_BUTTON), int(constant.FIRST_FLOOR)+hallOrder.Floor, 1)
+				localMatrix = writeLocalMatrix(ch_elevTx, localMatrix, int(constant.UP_BUTTON), int(constant.FIRST_FLOOR)+hallOrder.Floor, 1)
 			} else if hallOrder.Button == elevio.BT_HallDown {
-				writeLocalMatrix(ch_elevTx, int(constant.DOWN_BUTTON), int(constant.FIRST_FLOOR)+hallOrder.Floor, 1)
+				localMatrix = writeLocalMatrix(ch_elevTx, localMatrix, int(constant.DOWN_BUTTON), int(constant.FIRST_FLOOR)+hallOrder.Floor, 1)
 			}
 		}
 		// Send localmatrix to master/slave through ch_elevTx
 	}
 }
-func writeLocalMatrix(ch_elevTx chan<- [][]int, row int, col int, value int) {
-	// _mtx.Lock()
-	// defer _mtx.Unlock()
-	// localMatrix[row][col] = value
-	// ch_elevTx <- localMatrix
+func writeLocalMatrix(ch_elevTx chan<- [][]int, localMatrix [][]int, row int, col int, value int) [][]int {
+	localMatrix[row][col] = value
+	ch_elevTx <- localMatrix
+	return localMatrix
 }
 
 // func IndexFinder(matrixMaster [][]int) int {
