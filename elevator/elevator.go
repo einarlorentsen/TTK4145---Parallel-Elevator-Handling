@@ -53,24 +53,30 @@ func InitElevator(ch_elevTransmit chan<- [][]int, ch_elevRecieve <-chan [][]int)
 /* Listens on updates from elevator fsm and updates the elevators local matrix */
 func elevatorHandler(localMatrix [][]int, ch_matrixMasterTx chan<- [][]int, ch_elevTx chan<- [][]int, ch_elevRx <-chan [][]int, ch_dir <-chan int, ch_floor <-chan int, ch_state <-chan constant.STATE, ch_hallOrder <-chan elevio.ButtonEvent) {
 	for {
-		fmt.Println("ListenElevator: Waiting on updates.")
+		// fmt.Println("ListenElevator: Waiting on updates.")
 		select {
 		case matrixMaster := <-ch_elevRx: // Send new matrixMaster to elevator fsm
 			localMatrix = confirmOrders(matrixMaster, localMatrix)
 			ch_elevTx <- localMatrix
 			// Motta master -> Sammenlikne ordre med local (unconfirmed)
 			// Fjern de som er delt med master
-
-			ch_matrixMasterTx <- matrixMaster
+			// DEADLOCK? SENDS ON CH TO ELEV, STALLS HERE WHILE ELEV TRIES TO
+			// SEND OVER ch_dirTx
+			go transmitMatrixMasterToElevator(ch_matrixMasterTx, matrixMaster)
+			// ch_matrixMasterTx <- matrixMaster
 		case dir := <-ch_dir: // Changed direction
+			fmt.Println("elevatorHandler: Recieved ch_dir, ", dir)
 			localMatrix = writeLocalMatrix(ch_elevTx, localMatrix, int(constant.UP_BUTTON), int(constant.DIR), int(dir))
 		case floor := <-ch_floor: // Arrived at floor
+			fmt.Println("elevatorHandler: Recieved ch_floor, ", floor)
 			// Update to floor
 			// Update floor lights
 			localMatrix = writeLocalMatrix(ch_elevTx, localMatrix, int(constant.UP_BUTTON), int(constant.FLOOR), int(floor))
 		case state := <-ch_state: // Changed state
+			fmt.Println("elevatorHandler: Recieved ch_state, ", state)
 			localMatrix = writeLocalMatrix(ch_elevTx, localMatrix, int(constant.UP_BUTTON), int(constant.ELEV_STATE), int(state))
 		case hallOrder := <-ch_hallOrder: // Recieved hall-order
+			fmt.Println("elevatorHandler: Recieved ch_hallOrder")
 			if hallOrder.Button == elevio.BT_HallUp {
 				localMatrix = writeLocalMatrix(ch_elevTx, localMatrix, int(constant.UP_BUTTON), int(constant.FIRST_FLOOR)+hallOrder.Floor, 1)
 			} else if hallOrder.Button == elevio.BT_HallDown {
@@ -78,6 +84,10 @@ func elevatorHandler(localMatrix [][]int, ch_matrixMasterTx chan<- [][]int, ch_e
 			}
 		}
 	}
+}
+
+func transmitMatrixMasterToElevator(ch_matrixMasterTx chan<- [][]int, matrixMaster [][]int) {
+	ch_matrixMasterTx <- matrixMaster
 }
 
 func writeLocalMatrix(ch_elevTx chan<- [][]int, localMatrix [][]int, row int, col int, value int) [][]int {

@@ -72,16 +72,16 @@ func InitMasterSlave(ch_elevTransmit <-chan [][]int, ch_elevRecieve chan<- [][]i
 	stateChange(matrixMaster, constant.SLAVE, ch_recieve, ch_recieveSlave, ch_peerDisconnected, ch_repeatedBcast, ch_recieveLocal, ch_recieveSlaveLocal)
 }
 
-func elevListen(ch_elevTransmit <-chan [][]int, ch_elevRecieve <-chan [][]int) {
-	for {
-		select {
-		case <-ch_elevTransmit:
-			fmt.Println("elevListen: ch_elevTransmit")
-		case <-ch_elevRecieve:
-			fmt.Println("elevListen: ch_elevRecieve")
-		}
-	}
-}
+// func elevListen(ch_elevTransmit <-chan [][]int, ch_elevRecieve <-chan [][]int) {
+// 	for {
+// 		select {
+// 		case <-ch_elevTransmit:
+// 			fmt.Println("elevListen: ch_elevTransmit")
+// 		case <-ch_elevRecieve:
+// 			fmt.Println("elevListen: ch_elevRecieve")
+// 		}
+// 	}
+// }
 
 /* Continously swapping states */
 func stateChange(matrixMaster [][]int, currentState constant.STATE, ch_recieve <-chan [][]int, ch_recieveSlave <-chan [][]int, ch_peerDisconnected <-chan int, ch_repeatedBcast chan<- [][]int, ch_recieveLocal chan<- [][]int, ch_recieveSlaveLocal <-chan [][]int) {
@@ -117,15 +117,15 @@ func stateMaster(matrixMaster [][]int, ch_recieve <-chan [][]int, ch_recieveSlav
 	for {
 		select {
 		case newMatrixMaster := <-ch_recieve:
-			fmt.Println("stateMaster: Recieved masterMatrix")
+			// fmt.Println("stateMaster: Recieved masterMatrix")
 			if checkMaster(newMatrixMaster) == constant.SLAVE {
 				fmt.Println("stateMaster: checkMaster returned SLAVE")
 				return constant.SLAVE // Change to slave
 			}
 		default:
-			fmt.Println("stateMaster: Waiting on 'ch_recieveSlave'")
+			// fmt.Println("stateMaster: Waiting on 'ch_recieveSlave'")
 			recievedMatrix := <-ch_recieveSlave
-			fmt.Println("stateMaster: Recieved on 'ch_recieveSlave'")
+			// fmt.Println("stateMaster: Recieved on 'ch_recieveSlave'")
 
 			// Check for disconnected slaves and delete them
 			if flagDisconnectedPeer == true { // Peerus deletus
@@ -151,9 +151,9 @@ func stateMaster(matrixMaster [][]int, ch_recieve <-chan [][]int, ch_recieveSlav
 
 			// Broadcast the whole
 			ch_recieveLocal <- matrixMaster // Send to local elevator (localOrderHandler)
-			fmt.Println("MASTER: Sent on ch_recieveLocal")
+			// fmt.Println("MASTER: Sent on ch_recieveLocal")
 			ch_repeatedBcast <- matrixMaster
-			fmt.Println("MASTER: Sent on ch_repeatBcast")
+			// fmt.Println("MASTER: Sent on ch_repeatBcast")
 		}
 	}
 }
@@ -221,7 +221,7 @@ func localOrderHandler(ch_recieveLocal <-chan [][]int, ch_transmitSlave chan<- [
 			ch_transmitSlave <- localMatrix
 			if flagMasterSlave == constant.SLAVE {
 				ch_recieveSlaveLocal <- localMatrix
-				fmt.Println("localOrderHandler: Sent localMatri")
+				fmt.Println("localOrderHandler: Sent localMatrix")
 			}
 		default:
 			// Do nothing.
@@ -251,8 +251,8 @@ func checkMaster(matrix [][]int) constant.STATE {
 	rows := len(matrix)
 	for row := int(constant.FIRST_ELEV); row < rows; row++ {
 		if matrix[row][constant.SLAVE_MASTER] == int(constant.MASTER) {
-			fmt.Println("checkMaster: Found master in matrix.")
-			fmt.Println("matrix[row][IP] = ", matrix[row][constant.IP], ". LocalIP = ", LocalIP)
+			// fmt.Println("checkMaster: Found master in matrix.")
+			// fmt.Println("matrix[row][IP] = ", matrix[row][constant.IP], ". LocalIP = ", LocalIP)
 			if matrix[row][constant.IP] < LocalIP {
 				return constant.SLAVE //
 			}
@@ -442,7 +442,7 @@ func clearCurrentOrders(matrix [][]int) [][]int {
 
 /* Order distribution algorithm */
 func calculateElevatorStops(matrix [][]int) [][]int {
-	fmt.Println("calculateElevatorStops: Calculate stops")
+	// fmt.Println("calculateElevatorStops: Calculate stops")
 	var flagOrderSet bool
 	rowLength := len(matrix[constant.UP_BUTTON])
 	colLength := len(matrix)
@@ -552,20 +552,20 @@ func calculateElevatorStops(matrix [][]int) [][]int {
 
 		} // End order condition
 	} // End inf loop
-	fmt.Println("calculateElevatorStops: Orders calculated.")
+	// fmt.Println("calculateElevatorStops: Orders calculated.")
 	return matrix
 } // End floor loop
 
 /*Broadcasts last item over ch_repeatedBcast */
 func repeatedBroadcast(ch_repeatedBcast <-chan [][]int, ch_updateInterval <-chan int, ch_transmit chan<- [][]int, ch_transmitSlave chan<- [][]int) {
 	var matrix [][]int
-	fmt.Println("repeatedBroadcast: Waiting on ch_repeatedBcast...")
+	// fmt.Println("repeatedBroadcast: Waiting on ch_repeatedBcast...")
 	matrix = <-ch_repeatedBcast
-	fmt.Println("repeatedBroadcast: Recieved over ch_repeatedBcast: ", matrix)
+	// fmt.Println("repeatedBroadcast: Recieved over ch_repeatedBcast: ", matrix)
 	for {
 		select {
 		case msg := <-ch_repeatedBcast:
-			fmt.Println("repeatedBroadcast: Recieved matrix over ch_repeatedBcast")
+			// fmt.Println("repeatedBroadcast: Recieved matrix over ch_repeatedBcast")
 			fmt.Println(msg)
 			matrix = msg
 		default:

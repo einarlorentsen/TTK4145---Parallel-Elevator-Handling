@@ -59,6 +59,9 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 			// i forrige registrerte retning.
 			// Hvis vi finner en bestilling sett retning til opp eller ned utifra hvor bestillingen er
 			// og hopp til MOVE state. Hvis du finner en bestiling i etasjen du allerede er i - hopp til DOORS OPEN
+			var oldElevDir elevio.MotorDirection // Var for MD check
+
+		checkIDLE:
 			for {
 				select {
 				case updateMatrixMaster := <-ch_matrixMasterRx:
@@ -67,19 +70,34 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 					cabOrders = updateCabOrders
 				default:
 					newElevDir = checkQueue(currentFloor, lastElevDir, matrixMaster, cabOrders)
+					if newElevDir != oldElevDir { // Just a check
+						fmt.Println("ElevFSM: newElevDir = ", newElevDir)
+						oldElevDir = newElevDir
+					}
+
 					if newElevDir == elevio.MD_Stop {
+						fmt.Println("ElevFSM: IDLE --> DOORS_OPEN")
+						fmt.Println("ElemFSM: IDLE: Waiting on ch_dirTX...")
 						ch_dirTx <- int(newElevDir)
+						fmt.Println("ElemFSM: IDLE: Sent on ch_dirTX!")
 						localState = constant.DOORS_OPEN
+						break checkIDLE // Break select
 					} else if newElevDir != elevio.MD_Idle {
+						fmt.Println("ElevFSM: IDLE --> MOVE")
 						lastElevDir = newElevDir
-						ch_dirTx <- int(newElevDir)
+						fmt.Println("ElemFSM: IDLE: Waiting on ch_dirTX...")
+						ch_dirTx <- int(newElevDir) // STALLS HERE
+						fmt.Println("ElemFSM: IDLE: Sent on ch_dirTX!")
 						localState = constant.MOVE
+						break checkIDLE // Break select
 					}
 				}
 				if localState != constant.IDLE {
-					break // Break the for-select loop
+					fmt.Println("ElevFSM: if localState != constant.IDLE")
+					break checkIDLE // Break the for-select loop
 				}
 			}
+			fmt.Println("ElevFSM: End IDLE")
 
 		case constant.MOVE:
 			fmt.Println("ElevFSM: MOVE")
@@ -92,6 +110,7 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 				case updateCabOrders := <-ch_cabOrderRx:
 					cabOrders = updateCabOrders
 				case floor := <-ch_floorRx:
+					fmt.Println("ElevFSM: Arrived at floor: ", floor)
 					currentFloor = floor
 					go elevio.SetFloorIndicator(currentFloor)
 					newElevDir = checkQueue(currentFloor, lastElevDir, matrixMaster, cabOrders)
@@ -125,6 +144,7 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 			ch_dirTx <- int(newElevDir)
 			elevio.SetMotorDirection(elevio.MD_Stop)
 			localState = constant.DOORS_OPEN
+			break
 
 		case constant.DOORS_OPEN:
 			fmt.Println("ElevFSM: DOORS_OPEN")
@@ -149,6 +169,7 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 					flagTimerActive = false
 					localState = constant.IDLE
 					ch_stateTx <- localState
+					break
 
 				default:
 					if cabOrders[currentFloor] == 1 || matrixMaster[index][currentFloor] == 1 {
@@ -165,7 +186,7 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 						}
 					}
 				}
-			}
+			} // End DOORS_OPEN
 		}
 	}
 }
