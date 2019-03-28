@@ -403,8 +403,8 @@ func mergeRecievedInfo(matrixMaster [][]int, recievedMatrix [][]int) [][]int {
 func checkOrderServed(matrixMaster [][]int, recievedMatrix [][]int) [][]int {
 	currentFloor := recievedMatrix[constant.UP_BUTTON][constant.FLOOR]
 	if checkStoppedOrDoorsOpen(recievedMatrix) == true {
-		matrixMaster[constant.UP_BUTTON][int(constant.FIRST_FLOOR)+currentFloor-1] = 0
-		matrixMaster[constant.DOWN_BUTTON][int(constant.FIRST_FLOOR)+currentFloor-1] = 0
+		matrixMaster[constant.UP_BUTTON][int(constant.FIRST_FLOOR)+currentFloor] = 0
+		matrixMaster[constant.DOWN_BUTTON][int(constant.FIRST_FLOOR)+currentFloor] = 0
 	}
 	return matrixMaster
 }
@@ -561,13 +561,18 @@ func repeatedBroadcast(ch_repeatedBcast <-chan [][]int, ch_updateInterval <-chan
 	var matrix [][]int
 	// fmt.Println("repeatedBroadcast: Waiting on ch_repeatedBcast...")
 	matrix = <-ch_repeatedBcast
+	prev_matrix := matrix
 	// fmt.Println("repeatedBroadcast: Recieved over ch_repeatedBcast: ", matrix)
 	for {
 		select {
 		case msg := <-ch_repeatedBcast:
 			// fmt.Println("repeatedBroadcast: Recieved matrix over ch_repeatedBcast")
-			fmt.Println(msg)
+
+			//	fmt.Println(msg)
 			matrix = msg
+			if !debugCheckMatrixEqual(matrix, prev_matrix) {
+				fmt.Println("Master matrix = ", matrix)
+			}
 		default:
 			<-ch_updateInterval      // Send over channel once each UPDATE_INTERVAL
 			switch flagMasterSlave { // Send over channel dependent on MASTER/SLAVE state
@@ -579,4 +584,20 @@ func repeatedBroadcast(ch_repeatedBcast <-chan [][]int, ch_updateInterval <-chan
 			}
 		}
 	}
+}
+
+func debugCheckMatrixEqual(m1 [][]int, m2 [][]int) bool {
+	length_m1 := len(m1)
+	length_m2 := len(m2)
+	if length_m1 != length_m2 {
+		return false
+	}
+	for row := 0; row < length_m1; row++ {
+		for col := 0; col < len(m1[0]); col++ {
+			if m1[row][col] != m2[row][col] {
+				return false
+			}
+		}
+	}
+	return true
 }

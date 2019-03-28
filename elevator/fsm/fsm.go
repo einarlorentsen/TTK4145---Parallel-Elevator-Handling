@@ -113,8 +113,10 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 				case floor := <-ch_floorRx:
 					fmt.Println("ElevFSM: Arrived at floor: ", floor)
 					currentFloor = floor
-					go elevio.SetFloorIndicator(currentFloor)
 					newElevDir = checkQueue(currentFloor, lastElevDir, matrixMaster, cabOrders)
+					elevio.SetFloorIndicator(currentFloor)
+					ch_floorTx <- floor // Send floor to higher layers in the hierarchy
+
 					if newElevDir == elevio.MD_Stop {
 						localState = constant.STOP
 						ch_dirTx <- int(newElevDir)
@@ -126,9 +128,9 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 						ch_dirTx <- int(newElevDir)
 					} else if newElevDir == elevio.MD_Idle {
 						localState = constant.IDLE
+						newElevDir = elevio.MD_Stop
 						break checkMOVE // Break for-select
 					}
-					ch_floorTx <- floor // Send floor to higher layers in the hierarchy
 					// Når jeg kommer til en etasje, sjekk om jeg har en bestilling her i CAB eller matrixMaster.
 					// Hvis ja - hopp til STOPP state. Hvis nei, sjekk om jeg har en bestilling videre i retningen jeg
 					// kjører. Hvis ja, fortsett i MOVE med samme retning. Hvi jeg kun har en bestilling
@@ -154,7 +156,7 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 			ch_timerKill := make(chan bool)
 			ch_timerFinished := make(chan bool)
 			go doorTimer(ch_timerKill, ch_timerFinished)
-			flagTimerActive := true
+			// flagTimerActive := true
 			ch_stateTx <- localState
 			elevio.SetDoorOpenLamp(true)
 			cabOrders[currentFloor] = 0
@@ -170,7 +172,7 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 				case <-ch_timerFinished:
 					fmt.Println("doorTimer: ch_timerFinished recieved")
 					elevio.SetDoorOpenLamp(false)
-					flagTimerActive = false
+					// flagTimerActive = false
 					localState = constant.IDLE
 					ch_stateTx <- localState
 					break checkDOORSOPEN
@@ -178,20 +180,20 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 				default:
 					if cabOrders[currentFloor] == 1 || matrixMaster[index][currentFloor] == 1 {
 						fmt.Println("ElevFSM: DOORS_OPEN: New cab/hall order recieved")
-						cabOrders[currentFloor] = 0
-						if flagTimerActive == true {
-							fmt.Println("ElevFSM: DOORS_OPEN: Timer killed")
-							ch_timerKill <- true
-							flagTimerActive = false
-						}
+						cabOrders[currentFloor] = 0 // Resets order at current floor
+						// if flagTimerActive == true {
+						// 	fmt.Println("ElevFSM: DOORS_OPEN: Timer killed")
+						// 	ch_timerKill <- true
+						// 	flagTimerActive = false
+						// }
 					}
 					// WHAT DOES THIS ONE DO AGAIN?
-					if cabOrders[currentFloor] == 0 && cabOrders[currentFloor] == matrixMaster[index][int(constant.FIRST_FLOOR)+currentFloor] {
-						if flagTimerActive == false {
-							go doorTimer(ch_timerKill, ch_timerFinished)
-							flagTimerActive = true
-						}
-					}
+					// if cabOrders[currentFloor] == 0 && cabOrders[currentFloor] == matrixMaster[index][int(constant.FIRST_FLOOR)+currentFloor] {
+					// 	if flagTimerActive == false {
+					// 		go doorTimer(ch_timerKill, ch_timerFinished)
+					// 		flagTimerActive = true
+					// 	}
+					// }
 				}
 			} // End DOORS_OPEN
 		}

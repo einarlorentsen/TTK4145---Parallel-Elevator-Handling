@@ -40,18 +40,18 @@ func InitLocalElevatorMatrix() [][]int {
 
 /* Polls all buttons and sends recieved orders out on their respective channels */
 func UpdateOrderMatrix(ch_hallOrder chan<- elevio.ButtonEvent, ch_cabOrder chan<- elevio.ButtonEvent) {
-	fmt.Println("UpdateOrderMatrix: Init")
 	ch_pollButtons := make(chan elevio.ButtonEvent)
-	var order elevio.ButtonEvent
 	go elevio.PollButtons(ch_pollButtons) // Returns slice [floor, button]
 	for {
 		select {
-		case order = <-ch_pollButtons:
+		case order := <-ch_pollButtons:
 			fmt.Println("UpdateOrderMatrix: Recieved ch_pollButtons")
 			if order.Button == elevio.BT_Cab {
 				ch_cabOrder <- order
+				fmt.Println("UpdateOrderMatrix: sent over ch_cabOrder")
 			} else {
 				ch_hallOrder <- order
+				fmt.Println("UpdateOrderMatrix: sent over ch_hallOrder")
 			}
 		}
 	}
