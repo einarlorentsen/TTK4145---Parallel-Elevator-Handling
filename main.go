@@ -17,8 +17,8 @@ func main() {
 	fmt.Println("Main program started...")
 	elevio.Init("localhost:15657", constant.N_FLOORS) // Init elevatorServer
 
-	ch_elevTransmit := make(chan [][]int) // Elevator transmission, FROM elevator
-	ch_elevRecieve := make(chan [][]int)  // Elevator reciever,	TO elevator
+	ch_elevTransmit := make(chan [][]int, 2*constant.N_FLOORS) // Elevator transmission, FROM elevator
+	ch_elevRecieve := make(chan [][]int, 2*constant.N_FLOORS)  // Elevator reciever,	TO elevator
 
 	ch_quit_program := make(chan bool)
 
