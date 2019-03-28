@@ -561,7 +561,7 @@ func repeatedBroadcast(ch_repeatedBcast <-chan [][]int, ch_updateInterval <-chan
 	var matrix [][]int
 	// fmt.Println("repeatedBroadcast: Waiting on ch_repeatedBcast...")
 	matrix = <-ch_repeatedBcast
-	prev_matrix := matrix
+	// prev_matrix := matrix
 	// fmt.Println("repeatedBroadcast: Recieved over ch_repeatedBcast: ", matrix)
 	for {
 		select {
@@ -570,9 +570,9 @@ func repeatedBroadcast(ch_repeatedBcast <-chan [][]int, ch_updateInterval <-chan
 
 			//	fmt.Println(msg)
 			matrix = msg
-			if !debugCheckMatrixEqual(matrix, prev_matrix) {
-				fmt.Println("Master matrix = ", matrix)
-			}
+			// if !debugCheckMatrixEqual(matrix, prev_matrix) {
+			// 	fmt.Println("Master matrix = ", matrix)
+			// }
 		default:
 			<-ch_updateInterval      // Send over channel once each UPDATE_INTERVAL
 			switch flagMasterSlave { // Send over channel dependent on MASTER/SLAVE state

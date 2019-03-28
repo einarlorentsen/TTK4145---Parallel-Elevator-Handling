@@ -242,7 +242,7 @@ func checkQueue(currentFloor int, lastElevDir elevio.MotorDirection, matrixMaste
 }
 
 func checkAbove(row int, currentFloor int, matrixMaster [][]int, cabOrders []int) elevio.MotorDirection {
-	for floor := (int(constant.FIRST_FLOOR) + currentFloor + 1); floor < len(matrixMaster); floor++ {
+	for floor := (int(constant.FIRST_FLOOR) + currentFloor + 1); floor < len(matrixMaster[0]); floor++ {
 		if matrixMaster[row][floor] == 1 || cabOrders[floor-int(constant.FIRST_FLOOR)] == 1 {
 			return elevio.MD_Up
 		}
