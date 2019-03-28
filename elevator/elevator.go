@@ -20,9 +20,9 @@ func backupSendToElevator(ch_cabOrderArray chan<- []int, cabOrders []int) {
 
 /* */
 func InitElevator(ch_elevTransmit chan<- [][]int, ch_elevRecieve <-chan [][]int) {
-	ch_matrixMasterRx := make(chan [][]int)
-	ch_hallOrder := make(chan elevio.ButtonEvent) // Hall orders sent over channel
-	ch_cabOrder := make(chan elevio.ButtonEvent)  // Cab orders sent over channel
+	ch_matrixMasterRx := make(chan [][]int, 2*constant.N_FLOORS)
+	ch_hallOrder := make(chan elevio.ButtonEvent, 2*constant.N_FLOORS) // Hall orders sent over channel
+	ch_cabOrder := make(chan elevio.ButtonEvent, constant.N_FLOORS)    // Cab orders sent over channel
 	ch_cabServed := make(chan int)
 	ch_cabOrderArray := make(chan []int)
 	ch_dir := make(chan int)              // Channel for DIR updates
@@ -57,18 +57,24 @@ func InitElevator(ch_elevTransmit chan<- [][]int, ch_elevRecieve <-chan [][]int)
 
 /* Listens on updates from elevator fsm and updates the elevators local matrix */
 func elevatorHandler(localMatrix [][]int, ch_matrixMasterTx chan<- [][]int, ch_elevTx chan<- [][]int, ch_elevRx <-chan [][]int, ch_dir <-chan int, ch_floor <-chan int, ch_state <-chan constant.STATE, ch_hallOrder <-chan elevio.ButtonEvent) {
+	// var prevMatrixMaster [][]int
+
 	for {
 		// fmt.Println("ListenElevator: Waiting on updates.")
 		select {
 		case matrixMaster := <-ch_elevRx: // Send new matrixMaster to elevator fsm
 			localMatrix = confirmOrders(matrixMaster, localMatrix)
 			ch_elevTx <- localMatrix
-			// Motta master -> Sammenlikne ordre med local (unconfirmed)
-			// Fjern de som er delt med master
-			// DEADLOCK? SENDS ON CH TO ELEV, STALLS HERE WHILE ELEV TRIES TO
-			// SEND OVER ch_dirTx
+
 			go transmitMatrixMasterToElevator(ch_matrixMasterTx, matrixMaster)
-			// ch_matrixMasterTx <- matrixMaster
+
+			// Send matrix to elevator when there is an update
+			// if reflect.DeepEqual(matrixMaster, prevMatrixMaster) == false {
+			// 	fmt.Println("elevatorHandler: New matrixMaster recieved. Updating.")
+			// 	go transmitMatrixMasterToElevator(ch_matrixMasterTx, matrixMaster)
+			// 	prevMatrixMaster = matrixMaster
+			// }
+
 		case dir := <-ch_dir: // Changed direction
 			fmt.Println("elevatorHandler: Recieved ch_dir, ", dir)
 			localMatrix = writeLocalMatrix(ch_elevTx, localMatrix, int(constant.UP_BUTTON), int(constant.DIR), int(dir))
