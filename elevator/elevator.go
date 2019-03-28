@@ -14,12 +14,16 @@ var elevIndex int
 
 // var LocalMatrix [][]int
 
+func backupSendToElevator(ch_cabOrderArray chan<- []int, cabOrders []int) {
+	ch_cabOrderArray <- cabOrders
+}
+
 /* */
 func InitElevator(ch_elevTransmit chan<- [][]int, ch_elevRecieve <-chan [][]int) {
 	ch_matrixMasterRx := make(chan [][]int)
 	ch_hallOrder := make(chan elevio.ButtonEvent) // Hall orders sent over channel
 	ch_cabOrder := make(chan elevio.ButtonEvent)  // Cab orders sent over channel
-	ch_cabServed := make(chan elevio.ButtonEvent)
+	ch_cabServed := make(chan int)
 	ch_cabOrderArray := make(chan []int)
 	ch_dir := make(chan int)              // Channel for DIR updates
 	ch_floor := make(chan int)            // Channel for FLOOR updates
@@ -35,17 +39,18 @@ func InitElevator(ch_elevTransmit chan<- [][]int, ch_elevRecieve <-chan [][]int)
 	} else {
 		fmt.Println("Backup found.")
 		cabOrders = order_handler.InitCabOrders(cabOrdersBackup[0])
+		go backupSendToElevator(ch_cabOrderArray, cabOrders)
 	}
 
 	localMatrix = order_handler.InitLocalElevatorMatrix()
 	// Button updates over their respective channels
 	go order_handler.UpdateOrderMatrix(ch_hallOrder, ch_cabOrder)
-	// Listen for elevator updates, send the update to master/slave module.
-	go order_handler.UpdateCabOrders(ch_cabOrder, ch_cabServed, cabOrders)
+	// Listen for elevator updates, send the update to master/slave module. Send to elev fsm via ch_cabOrderArray
+	go order_handler.UpdateCabOrders(ch_cabOrder, ch_cabServed, cabOrders, ch_cabOrderArray)
 
 	// ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_dirTx chan<- int, ch_floorTx chan<- int, ch_stateTx chan<- constant.STATE
 
-	go fsm.ElevFSM(ch_matrixMasterRx, ch_cabOrderArray, ch_dir, ch_floor, ch_state)
+	go fsm.ElevFSM(ch_matrixMasterRx, ch_cabOrderArray, ch_dir, ch_floor, ch_state, ch_cabServed)
 
 	elevatorHandler(localMatrix, ch_matrixMasterRx, ch_elevTransmit, ch_elevRecieve, ch_dir, ch_floor, ch_state, ch_hallOrder)
 }

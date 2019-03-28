@@ -31,7 +31,7 @@ func initEmptyMatrixMaster() [][]int {
 	return matrixMaster
 }
 
-func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_dirTx chan<- int, ch_floorTx chan<- int, ch_stateTx chan<- constant.STATE) {
+func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_dirTx chan<- int, ch_floorTx chan<- int, ch_stateTx chan<- constant.STATE, ch_cabServed chan<- int) {
 	fmt.Println("ElevFSM: Initialized...")
 	var lastElevDir elevio.MotorDirection
 	var newElevDir elevio.MotorDirection
@@ -158,6 +158,7 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 			go doorTimer(ch_timerKill, ch_timerFinished)
 			// flagTimerActive := true
 			ch_stateTx <- localState
+			ch_cabServed <- currentFloor // Serve cab order
 			elevio.SetDoorOpenLamp(true)
 			cabOrders[currentFloor] = 0
 			index := IndexFinder(matrixMaster)
@@ -179,7 +180,7 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 
 				default:
 					if cabOrders[currentFloor] == 1 || matrixMaster[index][currentFloor] == 1 {
-						fmt.Println("ElevFSM: DOORS_OPEN: New cab/hall order recieved")
+						// fmt.Println("ElevFSM: DOORS_OPEN: New cab/hall order recieved")
 						cabOrders[currentFloor] = 0 // Resets order at current floor
 						// if flagTimerActive == true {
 						// 	fmt.Println("ElevFSM: DOORS_OPEN: Timer killed")
@@ -210,7 +211,7 @@ func checkCurrentFloor(row int, currentFloor int, matrixMaster [][]int, cabOrder
 }
 
 func checkQueue(currentFloor int, lastElevDir elevio.MotorDirection, matrixMaster [][]int, cabOrders []int) elevio.MotorDirection {
-	var direction elevio.MotorDirection = elevio.MD_Idle
+	var direction elevio.MotorDirection = elevio.MD_Idle // fmt.Println("fsm: checkQueue: cabOrders: ", cabOrders)
 	// fmt.Println("checkQueue: mM rows: ", len(matrixMaster))
 	// fmt.Println("checkQueue: mM cols: ", len(matrixMaster[0]))
 	// fmt.Println("checkQueue: cab length: ", len(cabOrders))

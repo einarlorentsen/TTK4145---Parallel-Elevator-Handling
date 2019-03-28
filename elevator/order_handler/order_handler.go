@@ -58,21 +58,26 @@ func UpdateOrderMatrix(ch_hallOrder chan<- elevio.ButtonEvent, ch_cabOrder chan<
 }
 
 //Recieves the floor that has a set cab order and sets the flag in that floor
-func UpdateCabOrders(ch_cabOrder <-chan elevio.ButtonEvent, ch_cabServed <-chan elevio.ButtonEvent, cabOrders []int) {
+func UpdateCabOrders(ch_cabOrder <-chan elevio.ButtonEvent, ch_cabServed <-chan int, cabOrders []int, ch_cabOrderArray chan<- []int) {
 	var tmpBackup [][]int
 	tmpBackup = append(tmpBackup, cabOrders)
 	for {
 		select {
 		case buttonEvent := <-ch_cabOrder:
 			cabOrders[buttonEvent.Floor] = 1
+			ch_cabOrderArray <- cabOrders // Send to elevator fsm
+			setCabLights(cabOrders)
+			tmpBackup[0] = cabOrders
+			file_IO.WriteFile(constant.BACKUP_FILENAME, tmpBackup)
 			fmt.Println("updateCabOrders: Added cabOrder floor: ", buttonEvent.Floor)
-		case buttonEvent := <-ch_cabServed:
-			cabOrders[buttonEvent.Floor] = 0
-			fmt.Println("updateCabOrders: Deleted cabOrder floor: ", buttonEvent.Floor)
+		case floorServed := <-ch_cabServed:
+			cabOrders[floorServed] = 0
+			ch_cabOrderArray <- cabOrders // Send to elevator fsm
+			setCabLights(cabOrders)
+			tmpBackup[0] = cabOrders
+			file_IO.WriteFile(constant.BACKUP_FILENAME, tmpBackup)
+			fmt.Println("updateCabOrders: Deleted cabOrder floor: ", floorServed)
 		}
-		setCabLights(cabOrders)
-		tmpBackup[0] = cabOrders
-		file_IO.WriteFile(constant.BACKUP_FILENAME, tmpBackup)
 	}
 }
 
