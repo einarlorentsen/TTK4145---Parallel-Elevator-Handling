@@ -38,7 +38,7 @@ const (
 	CAB         FIELD = 2
 )
 
-const UPDATE_INTERVAL = 250 // Tick time in milliseconds
+const UPDATE_INTERVAL = 150 // Tick time in milliseconds
 const BACKUP_FILENAME = "backup.txt"
 const PORT_bcast = 16309      //16569
 const PORT_slaveBcast = 14152 //16570

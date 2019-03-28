@@ -37,6 +37,7 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 	var newElevDir elevio.MotorDirection
 	var localState constant.STATE
 	var matrixMaster [][]int
+	var flagTimerActive bool = false
 	matrixMaster = initEmptyMatrixMaster()
 	ch_floorRx := make(chan int)
 	cabOrders := make([]int, constant.N_FLOORS)
@@ -157,10 +158,13 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 			fmt.Println("ElevFSM: DOORS_OPEN")
 			ch_timerKill := make(chan bool)
 			ch_timerFinished := make(chan bool)
-			go doorTimer(ch_timerKill, ch_timerFinished)
-			// flagTimerActive := true
+			if flagTimerActive == false {
+				go doorTimer(ch_timerKill, ch_timerFinished)
+				flagTimerActive = true
+			}
 			ch_stateTx <- localState
 			ch_cabServed <- currentFloor // Serve cab order
+
 			elevio.SetDoorOpenLamp(true)
 			cabOrders[currentFloor] = 0
 			index := IndexFinder(matrixMaster)
@@ -176,9 +180,13 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 				case <-ch_timerFinished:
 					fmt.Println("doorTimer: ch_timerFinished recieved")
 					elevio.SetDoorOpenLamp(false)
-					// flagTimerActive = false
+					flagTimerActive = false
 					localState = constant.IDLE
 					ch_stateTx <- localState
+
+					// Temporarily erase the order served in matrixMaster
+					// matrixMaster[index][int(constant.FIRST_FLOOR)+currentFloor] = 0
+
 					break checkDOORSOPEN
 
 				default:
@@ -292,19 +300,20 @@ func IndexFinder(matrixMaster [][]int) int {
 func setHallLights(oldMat [][]int, newMat [][]int) {
 	// fmt.Println("New: ", newMat)
 	// fmt.Println("Old: ", oldMat)
-	for floor := int(constant.FIRST_FLOOR); floor < len(newMat[constant.UP_BUTTON]); floor++ {
-		if newMat[constant.UP_BUTTON][floor] == 1 {
-			elevio.SetButtonLamp(elevio.BT_HallUp, floor-int(constant.FIRST_FLOOR), true)
-		} else {
-			elevio.SetButtonLamp(elevio.BT_HallUp, floor-int(constant.FIRST_FLOOR), false)
-		}
+	// for floor := int(constant.FIRST_FLOOR); floor < len(newMat[constant.UP_BUTTON]); floor++ {
+	// 	if newMat[constant.UP_BUTTON][floor] == 1 {
+	// 		elevio.SetButtonLamp(elevio.BT_HallUp, floor-int(constant.FIRST_FLOOR), true)
+	// 	} else {
+	// 		elevio.SetButtonLamp(elevio.BT_HallUp, floor-int(constant.FIRST_FLOOR), false)
+	// 	}
+	//
+	// 	if newMat[constant.DOWN_BUTTON][floor] == 1 {
+	// 		elevio.SetButtonLamp(elevio.BT_HallDown, floor-int(constant.FIRST_FLOOR), true)
+	// 	} else {
+	// 		elevio.SetButtonLamp(elevio.BT_HallDown, floor-int(constant.FIRST_FLOOR), false)
+	// 	}
+	// }
 
-		if newMat[constant.DOWN_BUTTON][floor] == 1 {
-			elevio.SetButtonLamp(elevio.BT_HallDown, floor-int(constant.FIRST_FLOOR), true)
-		} else {
-			elevio.SetButtonLamp(elevio.BT_HallDown, floor-int(constant.FIRST_FLOOR), false)
-		}
-	}
 	// for floor := int(constant.FIRST_FLOOR); floor < len(newMat[constant.UP_BUTTON]); floor++ {
 	// 	if oldMat[constant.UP_BUTTON][floor] != newMat[constant.UP_BUTTON][floor] {
 	// 		fmt.Println("Setting hall light: ", floor)
