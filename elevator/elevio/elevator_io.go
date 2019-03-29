@@ -104,7 +104,7 @@ func PollFloorSensor(receiver chan<- int) {
 		v := getFloor()
 		if v != prev && v != -1 {
 			receiver <- v
-			// fmt.Println("PollFloorSensor: Floor ", v)
+			fmt.Println("ELEVIO: Recieved new floor, sending over channel")
 		}
 		prev = v
 	}

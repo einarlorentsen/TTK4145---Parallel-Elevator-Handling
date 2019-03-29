@@ -75,13 +75,17 @@ func elevatorHandler(localMatrix [][]int, ch_matrixMasterTx chan<- [][]int, ch_e
 			// }
 
 		case dir := <-ch_dir: // Changed direction
+			fmt.Println("Direction recieved from IDLE")
 			// fmt.Println("elevatorHandler: Recieved ch_dir, ", dir)
 			localMatrix = writeLocalMatrix(ch_elevTx, localMatrix, int(constant.UP_BUTTON), int(constant.DIR), int(dir))
 		case floor := <-ch_floor: // Arrived at floor
 			// fmt.Println("elevatorHandler: Recieved ch_floor, ", floor)
+			fmt.Println("State recieved from IDLE waiting for button to be pressed")
 			ch_buttonPressed <- true
 			// Update to floor
 			// Update floor lights
+			fmt.Println("State recieved from IDLE and the button is pressed")
+
 			localMatrix = writeLocalMatrix(ch_elevTx, localMatrix, int(constant.UP_BUTTON), int(constant.FLOOR), int(floor))
 		case state := <-ch_state: // Changed state
 			ch_buttonPressed <- true

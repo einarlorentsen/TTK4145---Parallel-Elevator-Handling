@@ -1,6 +1,8 @@
 package order_handler
 
 import (
+	"fmt"
+
 	"../../constant"
 	"../../file_IO"
 	"../../master_slave_fsm"
@@ -63,6 +65,7 @@ func UpdateCabOrders(ch_cabOrder <-chan elevio.ButtonEvent, ch_cabServed <-chan 
 	for {
 		select {
 		case buttonEvent := <-ch_cabOrder:
+			fmt.Println("Recieved cab order!")
 			cabOrders[buttonEvent.Floor] = 1
 			ch_cabOrderArray <- cabOrders // Send to elevator fsm
 			setCabLights(cabOrders)
@@ -70,6 +73,7 @@ func UpdateCabOrders(ch_cabOrder <-chan elevio.ButtonEvent, ch_cabServed <-chan 
 			file_IO.WriteFile(constant.BACKUP_FILENAME, tmpBackup)
 			// fmt.Println("updateCabOrders: Added cabOrder floor: ", buttonEvent.Floor)
 		case floorServed := <-ch_cabServed:
+			fmt.Println("Caborder is served!")
 			cabOrders[floorServed] = 0
 			ch_cabOrderArray <- cabOrders // Send to elevator fsm
 			setCabLights(cabOrders)
