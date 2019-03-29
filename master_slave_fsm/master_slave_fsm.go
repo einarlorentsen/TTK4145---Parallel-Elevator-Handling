@@ -410,7 +410,6 @@ func mergeRecievedInfo(matrixMaster [][]int, recievedMatrix [][]int) [][]int {
 func checkOrderServed(matrixMaster [][]int, recievedMatrix [][]int) [][]int {
 	currentFloor := recievedMatrix[constant.UP_BUTTON][constant.FLOOR]
 	if checkStoppedOrDoorsOpen(recievedMatrix) == true {
-		fmt.Println("Removing hall orders")
 		matrixMaster[constant.UP_BUTTON][int(constant.FIRST_FLOOR)+currentFloor] = 0
 		matrixMaster[constant.DOWN_BUTTON][int(constant.FIRST_FLOOR)+currentFloor] = 0
 	}

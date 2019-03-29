@@ -53,7 +53,7 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 	for {
 		switch localState {
 		case constant.IDLE:
-			fmt.Println("ElevFSM: IDLE")
+			// fmt.Println("ElevFSM: IDLE")
 			elevio.SetMotorDirection(elevio.MD_Stop)
 			ch_dirTx <- int(elevio.MD_Stop)
 			ch_stateTx <- localState
@@ -65,7 +65,7 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 			for {
 				select {
 				case updateMatrixMaster := <-ch_matrixMasterRx:
-					fmt.Println("---- FÅR NY MASTERMATRISE ----")
+					// fmt.Println("---- FÅR NY MASTERMATRISE ----")
 					fmt.Println("MATRIX MASTER: ", updateMatrixMaster)
 					order_handler.SetHallLights(updateMatrixMaster) //Setting hall lights (NEW - had it in this module before)
 					matrixMaster = updateMatrixMaster
@@ -100,14 +100,14 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 			// fmt.Println("ElevFSM: End IDLE")
 
 		case constant.MOVE:
-			fmt.Println("ElevFSM: MOVE")
+			// fmt.Println("ElevFSM: MOVE")
 			elevio.SetMotorDirection(newElevDir)
 			ch_stateTx <- localState
 		checkMOVE:
 			for {
 				select {
 				case updateMatrixMaster := <-ch_matrixMasterRx:
-					fmt.Println("---- FÅR NY MASTERMATRISE ----")
+					// fmt.Println("---- FÅR NY MASTERMATRISE ----")
 					fmt.Println("MATRIX MASTER: ", updateMatrixMaster)
 					order_handler.SetHallLights(updateMatrixMaster) //Setting hall lights (NEW - had it in this module before)
 					matrixMaster = updateMatrixMaster
@@ -146,7 +146,7 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 			}
 
 		case constant.STOP:
-			fmt.Println("ElevFSM: STOP")
+			// fmt.Println("ElevFSM: STOP")
 			newElevDir = elevio.MD_Stop
 			ch_stateTx <- localState
 			ch_dirTx <- int(newElevDir)
@@ -155,7 +155,7 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 			break
 
 		case constant.DOORS_OPEN:
-			fmt.Println("ElevFSM: DOORS_OPEN")
+			// fmt.Println("ElevFSM: DOORS_OPEN")
 			ch_timerKill := make(chan bool)
 			ch_timerFinished := make(chan bool)
 			if flagTimerActive == false {
@@ -172,7 +172,7 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 			for {
 				select {
 				case updateMatrixMaster := <-ch_matrixMasterRx:
-					fmt.Println("---- FÅR NY MASTERMATRISE ----")
+					// fmt.Println("---- FÅR NY MASTERMATRISE ----")
 					fmt.Println("MATRIX MASTER: ", updateMatrixMaster)
 					order_handler.SetHallLights(updateMatrixMaster) //Setting hall lights (NEW - had it in this module before)
 					matrixMaster = updateMatrixMaster
@@ -275,18 +275,18 @@ func checkBelow(row int, currentFloor int, matrixMaster [][]int, cabOrders []int
 }
 
 func doorTimer(timerKill <-chan bool, timerFinished chan<- bool) {
-	fmt.Println("doorTimer: Initialized")
+	// fmt.Println("doorTimer: Initialized")
 	timer := time.NewTimer(3 * time.Second)
 	for {
 		select {
 		case <-timerKill:
 			timer.Stop()
-			fmt.Println("doorTimer: Kill timer")
+			// fmt.Println("doorTimer: Kill timer")
 			return
 		case <-timer.C:
 			timer.Stop()
 			timerFinished <- true
-			fmt.Println("doorTimer: Timer finished")
+			// fmt.Println("doorTimer: Timer finished")
 			return
 		}
 	}

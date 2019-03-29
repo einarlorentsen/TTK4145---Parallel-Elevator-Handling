@@ -43,7 +43,7 @@ func UpdateOrderMatrix(ch_hallOrder chan<- elevio.ButtonEvent, ch_cabOrder chan<
 	for {
 		select {
 		case order := <-ch_pollButtons:
-			ch_buttonPressed <- true
+			// ch_buttonPressed <- true
 			// fmt.Println("UpdateOrderMatrix: Recieved ch_pollButtons")
 			if order.Button == elevio.BT_Cab {
 				ch_cabOrder <- order
