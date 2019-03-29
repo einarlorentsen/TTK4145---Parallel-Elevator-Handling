@@ -232,14 +232,16 @@ func localOrderHandler(ch_recieveLocal <-chan [][]int, ch_transmitSlave chan<- [
 			// fmt.Println("localOrderHandler: masterMatrix sent to ch_elevRecieve")
 		case localMatrix = <-ch_elevTransmit: // localMatrix FROM elevator
 			localMatrix[constant.UP_BUTTON][constant.SLAVE_MASTER] = int(flagMasterSlave) // Ensure correct state
-			localMatrix[constant.UP_BUTTON][constant.IP] = LocalIP                        // Ensure correct IP
+			localMatrix[constant.UP_BUTTON][constant.IP] = LocalIP
+			fmt.Println("case mottar fra ch_elevTransmit")                       // Ensure correct IP
 			ch_transmitSlave <- localMatrix
+			fmt.Println("mottok localMatrix")
 			if flagMasterSlave == constant.SLAVE {
 				ch_recieveSlaveLocal <- localMatrix
 				fmt.Println("localOrderHandler: Sent localMatrix")
 			}
 		default:
-			// Do nothing.
+			  
 		}
 	}
 }
