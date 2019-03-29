@@ -161,7 +161,6 @@ func stateMaster(matrixMaster [][]int, ch_recieve <-chan [][]int, ch_recieveSlav
 
 func sendMatrixMasterToElevator(ch_buttonPressed <-chan bool, ch_recieveLocal chan<- [][]int, matrixMaster [][]int) {
 	<-ch_buttonPressed
-	fmt.Println("Sending matrix master to Elevator")
 	ch_recieveLocal <- matrixMaster // Send to local elevator (localOrderHandler)
 }
 
