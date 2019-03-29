@@ -12,10 +12,11 @@ import (
 
 	"fmt"
 )
+
 // default port 15657
 func main() {
 	fmt.Println("Main program started...")
-	elevio.Init("localhost:15657", constant.N_FLOORS) // Init elevatorServer
+	elevio.Init("localhost:15658", constant.N_FLOORS) // Init elevatorServer
 
 	ch_elevTransmit := make(chan [][]int, 2*constant.N_FLOORS) // Elevator transmission, FROM elevator
 	ch_elevRecieve := make(chan [][]int, 2*constant.N_FLOORS)  // Elevator reciever,	TO elevator

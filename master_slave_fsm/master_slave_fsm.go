@@ -3,8 +3,6 @@ package master_slave_fsm
 import (
 	"fmt"
 	"os"
-	"strconv"
-	"strings"
 
 	// "os" // For getPID
 	"time"
@@ -43,7 +41,7 @@ func InitMasterSlave(ch_elevTransmit <-chan [][]int, ch_elevRecieve chan<- [][]i
 	ch_recieveSlave := make(chan [][]int)      // Slave matrix reciever
 	ch_recieveLocal := make(chan [][]int)      // Local master matrix transfer
 	ch_recieveSlaveLocal := make(chan [][]int) // Local slave matrix transfer
-	ch_peerDisconnected := make(chan int)
+	ch_peerDisconnected := make(chan string)
 	ch_repeatedBcast := make(chan [][]int)
 
 	// Communicates with the local elevator
@@ -85,7 +83,7 @@ func InitMasterSlave(ch_elevTransmit <-chan [][]int, ch_elevRecieve chan<- [][]i
 // }
 
 /* Continously swapping states */
-func stateChange(matrixMaster [][]int, currentState constant.STATE, ch_recieve <-chan [][]int, ch_recieveSlave <-chan [][]int, ch_peerDisconnected <-chan int, ch_repeatedBcast chan<- [][]int, ch_recieveLocal chan<- [][]int, ch_recieveSlaveLocal <-chan [][]int, ch_buttonPressed <-chan bool) {
+func stateChange(matrixMaster [][]int, currentState constant.STATE, ch_recieve <-chan [][]int, ch_recieveSlave <-chan [][]int, ch_peerDisconnected <-chan string, ch_repeatedBcast chan<- [][]int, ch_recieveLocal chan<- [][]int, ch_recieveSlaveLocal <-chan [][]int, ch_buttonPressed <-chan bool) {
 	for {
 		switch currentState {
 		case constant.MASTER:
@@ -105,7 +103,7 @@ func stateChange(matrixMaster [][]int, currentState constant.STATE, ch_recieve <
 /* ELEV N    |    |     |       |            |              |       | .. |        | */
 /* Matrix indexing: [ROW][COL] */
 
-func stateMaster(matrixMaster [][]int, ch_recieve <-chan [][]int, ch_recieveSlave <-chan [][]int, ch_peerDisconnected <-chan int, ch_repeatedBcast chan<- [][]int, ch_recieveLocal chan<- [][]int, ch_buttonPressed <-chan bool) constant.STATE {
+func stateMaster(matrixMaster [][]int, ch_recieve <-chan [][]int, ch_recieveSlave <-chan [][]int, ch_peerDisconnected <-chan string, ch_repeatedBcast chan<- [][]int, ch_recieveLocal chan<- [][]int, ch_buttonPressed <-chan bool) constant.STATE {
 	flagMasterSlave = constant.MASTER
 	fmt.Println("Masterstate activated.")
 
@@ -123,39 +121,29 @@ func stateMaster(matrixMaster [][]int, ch_recieve <-chan [][]int, ch_recieveSlav
 				fmt.Println("stateMaster: checkMaster returned SLAVE")
 				return constant.SLAVE // Change to slave
 			}
-		default:
-			// fmt.Println("stateMaster: Waiting on 'ch_recieveSlave'")
-			recievedMatrix := <-ch_recieveSlave
-			// fmt.Println("stateMaster: Recieved on 'ch_recieveSlave'")
-
-			// Check for disconnected slaves and delete them
-			if flagDisconnectedPeer == true { // Peerus deletus
-				disconnectedIP := <-ch_peerDisconnected
-				matrixMaster = deleteDisconnectedPeer(matrixMaster, disconnectedIP)
-				flagDisconnectedPeer = false
-			}
-
+		case disconnectedIP := <-ch_peerDisconnected:
+			fmt.Println("Recieved over ch_peerDisconnect")
+			matrixMaster = deleteDisconnectedPeer(matrixMaster, disconnectedIP)
+			flagDisconnectedPeer = false
+			fmt.Println("flagDisconnectedPeer = false")
+			fmt.Println("case disconnectedIP: FINISHED")
+		case recievedMatrix := <-ch_recieveSlave:
 			// Merge info from recievedMatrix, append if new slave
 			matrixMaster = mergeRecievedInfo(matrixMaster, recievedMatrix)
-
 			// Remove served order at current floor in recievedMatrix
 			matrixMaster = checkOrderServed(matrixMaster, recievedMatrix)
-
 			// Insert unconfirmed orders UP/DOWN into matrixMaster
 			matrixMaster = mergeUnconfirmedOrders(matrixMaster, recievedMatrix)
-
 			// Clear orders
 			matrixMaster = clearCurrentOrders(matrixMaster)
-
 			// Calculate stop
 			matrixMaster = calculateElevatorStops(matrixMaster)
-
 			// Broadcast the whole
 			go sendMatrixMasterToElevator(ch_buttonPressed, ch_recieveLocal, matrixMaster)
-
 			// fmt.Println("MASTER: Sent on ch_recieveLocal")
 			ch_repeatedBcast <- matrixMaster
 			// fmt.Println("MASTER: Sent on ch_repeatBcast")
+		default:
 		}
 	}
 }
@@ -233,7 +221,7 @@ func localOrderHandler(ch_recieveLocal <-chan [][]int, ch_transmitSlave chan<- [
 		case localMatrix = <-ch_elevTransmit: // localMatrix FROM elevator
 			localMatrix[constant.UP_BUTTON][constant.SLAVE_MASTER] = int(flagMasterSlave) // Ensure correct state
 			localMatrix[constant.UP_BUTTON][constant.IP] = LocalIP
-			fmt.Println("case mottar fra ch_elevTransmit")                       // Ensure correct IP
+			fmt.Println("case mottar fra ch_elevTransmit") // Ensure correct IP
 			ch_transmitSlave <- localMatrix
 			fmt.Println("mottok localMatrix")
 			if flagMasterSlave == constant.SLAVE {
@@ -241,7 +229,7 @@ func localOrderHandler(ch_recieveLocal <-chan [][]int, ch_transmitSlave chan<- [
 				fmt.Println("localOrderHandler: Sent localMatrix")
 			}
 		default:
-			  
+
 		}
 	}
 }
@@ -336,61 +324,43 @@ func tickCounter(ch_updateInterval chan<- int) {
 // 	}
 // }
 
-// ALTERNATIVE? The information sent over peerUpdate.Lost doesnt make sense..
-// It also crashes when something disconnects. WIP function below.
-func checkDisconnectedPeers(ch_peerUpdate <-chan peers.PeerUpdate, ch_peerDisconnected chan<- int) {
+/* Check for disconnected peers, pass ID as string over channel */
+func checkDisconnectedPeers(ch_peerUpdate <-chan peers.PeerUpdate, ch_peerDisconnected chan<- string) {
 	for {
 		if flagDisconnectedPeer == false {
-			// peerUpdate := <-ch_peerUpdate
-			// peerUpdateLost := peerUpdate.Lost
-			// fmt.Println("Lost peer-array: ")
-			// fmt.Println(peerUpdateLost)
-
+			peerUpdate := <-ch_peerUpdate
+			peerUpdateLost := peerUpdate.Lost
+			fmt.Println("checkDisconnectedPeers: Lost peer-array: ")
+			fmt.Println(peerUpdateLost)
+			if len(peerUpdate.Lost) >= 1 {
+				flagDisconnectedPeer = true
+				fmt.Println("checkDisconnectedPeers: flagDisconnectedPeer = true")
+				fmt.Println("checkDisconnectedPeers: Lost peers: ", peerUpdate.Lost[0])
+				fmt.Println("checkDisconnectedPeers: peerReturnedIP: ", peerUpdateLost[0])
+				ch_peerDisconnected <- peerUpdateLost[0]
+				fmt.Println("checkDisconnectedPeers: Sent over ch_peerDisconnected")
+			}
 		}
-
-		// if len(peerUpdate.Lost) >= 1 {
-		// 	flagDisconnectedPeer = true
-		// 	fmt.Println("Lost peers: ", peerUpdate.Lost[0])
-		// 	peerReturnedIP := splitAtPeriodReturnLastItem(peerUpdate.Lost[0])
-		// 	// peerReturnedIP := file_IO.StringToNumbers(peerUpdate.Lost[0])
-		// 	fmt.Println("peerReturnedIP: ", peerReturnedIP)
-		// 	ch_peerDisconnected <- peerReturnedIP
-		// }
-
-		// fmt.Println("Length of peers lost array: ", len(peerUpdateLost))
-		//
-		// peerLostLength := len(peerUpdateLost)
-		// if peerLostLength > 0 {
-		// 	flagDisconnectedPeer = true
-		// 	peerUpdateIPLength := len(peerUpdateLost[0])
-		// 	for lostPeer := 0; lostPeer < peerUpdateIPLength; lostPeer++ {
-		// 		for i := peerLostLength - 1; i > 0; i-- {
-		// 			if peerUpdateLost[lostPeer][i] == '.' {
-		// 				peerUpdateLost[lostPeer] = peerUpdateLost[lostPeer][i+1 : peerLostLength]
-		// 				break
-		// 			}
-		// 		}
-		// 	}
-		// 	// disconnectedPeerList := file_IO.StringToNumbers(peerUpdateLost)
-		// 	for i := 0; i < peerLostLength; i++ {
-		// 		fmt.Println("peerLost loop: ", i)
-		// 		fmt.Println("PeerLost value: ", file_IO.StringToNumbers(peerUpdateLost[i]))
-		// 		ch_peerDisconnected <- file_IO.StringToNumbers(peerUpdateLost[i])[0]
-		// 	}
-		// }
 	}
 }
-func splitAtPeriodReturnLastItem(str string) int {
-	s := strings.Split(str, ".")
-	sInt, _ := strconv.Atoi(s[len(s)-1])
-	return sInt
-}
+
+// func splitAtPeriodReturnLastItem(str string) int {
+// 	s := strings.Split(str, ".")
+// 	sInt, _ := strconv.Atoi(s[len(s)-1])
+// 	return sInt
+// }
 
 /* Delete peer with the corresponding IP */
-func deleteDisconnectedPeer(matrixMaster [][]int, disconnectedIP int) [][]int {
+func deleteDisconnectedPeer(matrixMaster [][]int, disconnectedIP string) [][]int {
+	var peer int
+	for _, c := range disconnectedIP {
+		peer = int(c) // Cast the rune from string into a process ID integer
+	}
 	for row := int(constant.FIRST_ELEV); row < len(matrixMaster); row++ {
-		if matrixMaster[row][constant.IP] == disconnectedIP {
+		if matrixMaster[row][constant.IP] == peer {
+			fmt.Println("Old matrixMaster: ", matrixMaster)
 			matrixMaster = append(matrixMaster[:row], matrixMaster[row+1:]...) // Delete row
+			fmt.Println("New matrixMaster: ", matrixMaster)
 		}
 	}
 	return matrixMaster

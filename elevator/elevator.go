@@ -2,6 +2,7 @@ package elevator
 
 import (
 	"fmt"
+	"time"
 
 	"../constant"
 	"../file_IO"
@@ -52,13 +53,13 @@ func InitElevator(ch_elevTransmit chan<- [][]int, ch_elevRecieve <-chan [][]int,
 
 	go fsm.ElevFSM(ch_matrixMasterRx, ch_cabOrderArray, ch_dir, ch_floor, ch_state, ch_cabServed)
 
+	go tickCounterInternal(ch_buttonPressed)
+
 	elevatorHandler(localMatrix, ch_matrixMasterRx, ch_elevTransmit, ch_elevRecieve, ch_dir, ch_floor, ch_state, ch_hallOrder, ch_buttonPressed)
 }
 
 /* Listens on updates from elevator fsm and updates the elevators local matrix */
 func elevatorHandler(localMatrix [][]int, ch_matrixMasterTx chan<- [][]int, ch_elevTx chan<- [][]int, ch_elevRx <-chan [][]int, ch_dir <-chan int, ch_floor <-chan int, ch_state <-chan constant.STATE, ch_hallOrder <-chan elevio.ButtonEvent, ch_buttonPressed chan<- bool) {
-	// var prevMatrixMaster [][]int
-
 	for {
 		// fmt.Println("ListenElevator: Waiting on updates.")
 		select {
@@ -109,6 +110,7 @@ func writeLocalMatrix(ch_elevTx chan<- [][]int, localMatrix [][]int, row int, co
 	return localMatrix
 }
 
+/* Delete unconfirmed orders in localMatrix */
 func confirmOrders(matrixMaster [][]int, localMatrix [][]int) [][]int {
 	for row := constant.UP_BUTTON; row <= constant.DOWN_BUTTON; row++ {
 		for col := int(constant.FIRST_FLOOR); col < len(matrixMaster[0]); col++ {
@@ -118,4 +120,12 @@ func confirmOrders(matrixMaster [][]int, localMatrix [][]int) [][]int {
 		}
 	}
 	return localMatrix
+}
+
+/* Sends a tick to update the internal masterMatrix with the recieved one */
+func tickCounterInternal(ch_buttonPressed chan<- bool) {
+	ticker2 := time.NewTicker(500 * time.Millisecond)
+	for range ticker2.C {
+		ch_buttonPressed <- true
+	}
 }
