@@ -68,13 +68,6 @@ func elevatorHandler(localMatrix [][]int, ch_matrixMasterTx chan<- [][]int, ch_e
 			ch_elevTx <- localMatrix
 			ch_matrixMasterTx <- matrixMaster
 
-			// Send matrix to elevator when there is an update
-			// if reflect.DeepEqual(matrixMaster, prevMatrixMaster) == false {
-			// 	fmt.Println("elevatorHandler: New matrixMaster recieved. Updating.")
-			// 	go transmitMatrixMasterToElevator(ch_matrixMasterTx, matrixMaster)
-			// 	prevMatrixMaster = matrixMaster
-			// }
-
 		case dir := <-ch_dir: // Changed direction
 			// fmt.Println("elevatorHandler: Recieved ch_dir, ", dir)
 			localMatrix = writeLocalMatrix(ch_elevTx, localMatrix, int(constant.UP_BUTTON), int(constant.DIR), int(dir))

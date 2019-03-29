@@ -74,7 +74,7 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 					newElevDir = checkQueue(currentFloor, lastElevDir, matrixMaster, cabOrders)
 					if newElevDir == elevio.MD_Stop {
 						fmt.Println("ElevFSM: IDLE --> DOORS_OPEN")
-						 fmt.Println("ElemFSM: IDLE: Waiting on ch_dirTX...")
+						fmt.Println("ElemFSM: IDLE: Waiting on ch_dirTX...")
 						ch_dirTx <- int(newElevDir)
 						fmt.Println("ElemFSM: IDLE: Sent on ch_dirTX!")
 						localState = constant.DOORS_OPEN
@@ -94,7 +94,7 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 					newElevDir = checkQueue(currentFloor, lastElevDir, matrixMaster, cabOrders)
 					if newElevDir == elevio.MD_Stop {
 						fmt.Println("ElevFSM: IDLE --> DOORS_OPEN")
-						 fmt.Println("ElemFSM: IDLE: Waiting on ch_dirTX...")
+						fmt.Println("ElemFSM: IDLE: Waiting on ch_dirTX...")
 						ch_dirTx <- int(newElevDir)
 						fmt.Println("ElemFSM: IDLE: Sent on ch_dirTX!")
 						localState = constant.DOORS_OPEN
@@ -135,13 +135,13 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 					fmt.Println("Recieved on ch_cabOrderRx")
 					cabOrders = updateCabOrders
 				case floor := <-ch_floorRx:
-				  fmt.Println("Recieved on ch_floorRx, floor: ", floor)
+					fmt.Println("Recieved on ch_floorRx, floor: ", floor)
 					// fmt.Println("ElevFSM: Arrived at floor: ", floor)
 					currentFloor = floor
 					newElevDir = checkQueue(currentFloor, lastElevDir, matrixMaster, cabOrders)
 					elevio.SetFloorIndicator(currentFloor)
 					ch_floorTx <- floor
-					fmt.Println("Sendt on ch_floorTx")// Send floor to higher layers in the hierarchy
+					fmt.Println("Sendt on ch_floorTx") // Send floor to higher layers in the hierarchy
 
 					if newElevDir == elevio.MD_Stop {
 						fmt.Println("newElevDir = STOP")
@@ -224,21 +224,8 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 
 				default:
 					if cabOrders[currentFloor] == 1 || matrixMaster[index][currentFloor] == 1 {
-						// fmt.Println("ElevFSM: DOORS_OPEN: New cab/hall order recieved")
 						cabOrders[currentFloor] = 0 // Resets order at current floor
-						// if flagTimerActive == true {
-						// 	fmt.Println("ElevFSM: DOORS_OPEN: Timer killed")
-						// 	ch_timerKill <- true
-						// 	flagTimerActive = false
-						// }
 					}
-					// WHAT DOES THIS ONE DO AGAIN?
-					// if cabOrders[currentFloor] == 0 && cabOrders[currentFloor] == matrixMaster[index][int(constant.FIRST_FLOOR)+currentFloor] {
-					// 	if flagTimerActive == false {
-					// 		go doorTimer(ch_timerKill, ch_timerFinished)
-					// 		flagTimerActive = true
-					// 	}
-					// }
 				}
 			} // End DOORS_OPEN
 		}
@@ -305,27 +292,19 @@ func checkBelow(row int, currentFloor int, matrixMaster [][]int, cabOrders []int
 }
 
 func doorTimer(timerKill <-chan bool, timerFinished chan<- bool) {
-	// fmt.Println("doorTimer: Initialized")
 	timer := time.NewTimer(3 * time.Second)
 	for {
 		select {
 		case <-timerKill:
 			timer.Stop()
-			// fmt.Println("doorTimer: Kill timer")
 			return
 		case <-timer.C:
 			timer.Stop()
 			timerFinished <- true
-			// fmt.Println("doorTimer: Timer finished")
 			return
 		}
 	}
 }
-
-//
-// func doorTimer2(timer time.NewTimer(), timerFinished chan<- bool) {
-//
-// }
 
 func IndexFinder(matrixMaster [][]int) int {
 	rows := len(matrixMaster)
@@ -336,41 +315,3 @@ func IndexFinder(matrixMaster [][]int) int {
 	}
 	return -1
 }
-
-// func setHallLights(oldMat [][]int, newMat [][]int) {
-// 	// fmt.Println("New: ", newMat)
-// 	// fmt.Println("Old: ", oldMat)
-// 	for floor := int(constant.FIRST_FLOOR); floor < len(newMat[constant.UP_BUTTON]); floor++ {
-// 		if newMat[constant.UP_BUTTON][floor] == 1 {
-// 			elevio.SetButtonLamp(elevio.BT_HallUp, floor-int(constant.FIRST_FLOOR), true)
-// 		} else {
-// 			elevio.SetButtonLamp(elevio.BT_HallUp, floor-int(constant.FIRST_FLOOR), false)
-// 		}
-//
-// 		if newMat[constant.DOWN_BUTTON][floor] == 1 {
-// 			elevio.SetButtonLamp(elevio.BT_HallDown, floor-int(constant.FIRST_FLOOR), true)
-// 		} else {
-// 			elevio.SetButtonLamp(elevio.BT_HallDown, floor-int(constant.FIRST_FLOOR), false)
-// 		}
-// 	}
-
-// for floor := int(constant.FIRST_FLOOR); floor < len(newMat[constant.UP_BUTTON]); floor++ {
-// 	if oldMat[constant.UP_BUTTON][floor] != newMat[constant.UP_BUTTON][floor] {
-// 		fmt.Println("Setting hall light: ", floor)
-// 		if newMat[constant.UP_BUTTON][floor] == 1 {
-// 			elevio.SetButtonLamp(elevio.BT_HallUp, floor-int(constant.FIRST_FLOOR), true)
-// 		} else {
-// 			elevio.SetButtonLamp(elevio.BT_HallUp, floor-int(constant.FIRST_FLOOR), false)
-// 		}
-// 	}
-//
-// 	if oldMat[constant.DOWN_BUTTON][floor] != newMat[constant.DOWN_BUTTON][floor] {
-// 		fmt.Println("Setting hall light: ", floor)
-// 		if newMat[constant.DOWN_BUTTON][floor] == 1 {
-// 			elevio.SetButtonLamp(elevio.BT_HallDown, floor-int(constant.FIRST_FLOOR), true)
-// 		} else {
-// 			elevio.SetButtonLamp(elevio.BT_HallDown, floor-int(constant.FIRST_FLOOR), false)
-// 		}
-// 	}
-// }
-// }
