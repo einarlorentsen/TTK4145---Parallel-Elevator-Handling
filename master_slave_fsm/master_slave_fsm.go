@@ -3,12 +3,16 @@ package master_slave_fsm
 import (
 	"fmt"
 	"os"
+
+	// "os" // For getPID
 	"time"
 
 	"../constant"
 
 	"../elevator/elevio"
+	"../file_IO"
 	"../network/bcast"
+	"../network/localip"
 	"../network/peers"
 )
 
@@ -52,6 +56,10 @@ func InitMasterSlave(ch_elevTransmit <-chan [][]int, ch_elevRecieve chan<- [][]i
 	go bcast.Receiver(constant.PORT_bcast, ch_recieve)
 	go bcast.Transmitter(constant.PORT_slaveBcast, ch_transmitSlave)
 	go bcast.Receiver(constant.PORT_slaveBcast, ch_recieveSlave)
+
+	// Start this one in master and slave state, kill the goroutine in between state change?
+	// Must be able to use different channels depending on master or slave.
+	// Or just pass all channels, and use a for-switch loop depending on master/slave
 	go repeatedBroadcast(ch_repeatedBcast, ch_updateInterval, ch_transmit, ch_transmitSlave)
 	// Start the update_interval ticker.
 	go tickCounter(ch_updateInterval)
@@ -62,6 +70,17 @@ func InitMasterSlave(ch_elevTransmit <-chan [][]int, ch_elevRecieve chan<- [][]i
 	fmt.Println("Master/Slave state machine initialized.")
 	stateChange(matrixMaster, constant.SLAVE, ch_recieve, ch_recieveSlave, ch_peerDisconnected, ch_repeatedBcast, ch_recieveLocal, ch_recieveSlaveLocal, ch_buttonPressed)
 }
+
+// func elevListen(ch_elevTransmit <-chan [][]int, ch_elevRecieve <-chan [][]int) {
+// 	for {
+// 		select {
+// 		case <-ch_elevTransmit:
+// 			fmt.Println("elevListen: ch_elevTransmit")
+// 		case <-ch_elevRecieve:
+// 			fmt.Println("elevListen: ch_elevRecieve")
+// 		}
+// 	}
+// }
 
 /* Continously swapping states */
 func stateChange(matrixMaster [][]int, currentState constant.STATE, ch_recieve <-chan [][]int, ch_recieveSlave <-chan [][]int, ch_peerDisconnected <-chan string, ch_repeatedBcast chan<- [][]int, ch_recieveLocal chan<- [][]int, ch_recieveSlaveLocal <-chan [][]int, ch_buttonPressed <-chan bool) {
@@ -142,6 +161,9 @@ func stateSlave(ch_recieve <-chan [][]int, ch_repeatedBcast chan<- [][]int, ch_r
 	flagSlaveAlone := true // Assumes slave to be alone
 	fmt.Println("Slave-state initialized")
 
+	// USE ch_repeatedBcast <- matrixMaster
+
+	// ALL CODE BELOW IS OK 23.03.2019
 	for {
 		select {
 		case localMatrix := <-ch_recieveSlaveLocal: // Update repeated Bcasts with last local state
@@ -166,6 +188,7 @@ func stateSlave(ch_recieve <-chan [][]int, ch_repeatedBcast chan<- [][]int, ch_r
 			}
 		}
 	}
+	// return MASTER
 }
 
 func slaveTimer(ch_slaveAlone chan<- bool, ch_killTimer <-chan bool) {
@@ -227,17 +250,21 @@ func InitLocalMatrix() [][]int {
 }
 
 /* Check if there are other masters in the recieved matrix.
-   Lowest ID remains master. */
+   Lowest IP remains master.
+   Return MASTER if remain master, SLAVE if transition to slave */
 func checkMaster(matrix [][]int) constant.STATE {
 	rows := len(matrix)
 	for row := int(constant.FIRST_ELEV); row < rows; row++ {
 		if matrix[row][constant.SLAVE_MASTER] == int(constant.MASTER) {
+			// fmt.Println("checkMaster: Found master in matrix.")
+			// fmt.Println("matrix[row][IP] = ", matrix[row][constant.IP], ". LocalIP = ", LocalIP)
 			if matrix[row][constant.IP] < LocalIP {
-				return constant.SLAVE
+				return constant.SLAVE //
 			}
 		}
 	}
-	return constant.MASTER
+
+	return constant.MASTER //
 }
 
 func InitMatrixMaster() [][]int {
@@ -253,6 +280,25 @@ func InitMatrixMaster() [][]int {
 	return matrixMaster
 }
 
+/*  Converts the IP to an int. Example:
+    "10.100.23.253" -> 253 */
+func getLocalIP() int {
+	returnedIP, err := localip.LocalIP()
+	if err != nil {
+		fmt.Println(err)
+		returnedIP = "DISCONNECTED"
+	}
+
+	IPlength := len(returnedIP)
+	for i := IPlength - 1; i > 0; i-- {
+		if returnedIP[i] == '.' {
+			returnedIP = returnedIP[i+1 : IPlength]
+			break
+		}
+	}
+	return file_IO.StringToNumbers(returnedIP)[0] // Vector of 1 element
+}
+
 /* Ticks every UPDATE_INTERVAL milliseconds */
 func tickCounter(ch_updateInterval chan<- int) {
 	ticker := time.NewTicker(constant.UPDATE_INTERVAL * time.Millisecond)
@@ -263,6 +309,20 @@ func tickCounter(ch_updateInterval chan<- int) {
 
 /* *********************************************** */
 /*               HELPER FUNCTIONS                  */
+
+/* Check for disconnected peers, pass IP as int over channel */
+// func checkDisconnectedPeers(ch_peerUpdate <-chan peers.PeerUpdate, ch_peerDisconnected chan<- int) {
+// 	for {
+// 		if flagDisconnectedPeer == false {
+// 			peerUpdate := <-ch_peerUpdate
+// 			if len(peerUpdate.Lost) > 0 { // A peer has DC'ed
+// 				flagDisconnectedPeer = true
+// 				peerIP := file_IO.StringToNumbers(peerUpdate.Lost[0])[0]
+// 				ch_peerDisconnected <- peerIP
+// 			}
+// 		}
+// 	}
+// }
 
 /* Check for disconnected peers, pass ID as string over channel */
 func checkDisconnectedPeers(ch_peerUpdate <-chan peers.PeerUpdate, ch_peerDisconnected chan<- string) {
@@ -283,6 +343,12 @@ func checkDisconnectedPeers(ch_peerUpdate <-chan peers.PeerUpdate, ch_peerDiscon
 		}
 	}
 }
+
+// func splitAtPeriodReturnLastItem(str string) int {
+// 	s := strings.Split(str, ".")
+// 	sInt, _ := strconv.Atoi(s[len(s)-1])
+// 	return sInt
+// }
 
 /* Delete peer with the corresponding IP */
 func deleteDisconnectedPeer(matrixMaster [][]int, disconnectedIP string) [][]int {
@@ -363,6 +429,7 @@ func clearCurrentOrders(matrix [][]int) [][]int {
 
 /* Order distribution algorithm */
 func calculateElevatorStops(matrix [][]int) [][]int {
+	// fmt.Println("calculateElevatorStops: Calculate stops")
 	var flagOrderSet bool
 	rowLength := len(matrix[constant.UP_BUTTON])
 	colLength := len(matrix)
@@ -370,7 +437,8 @@ func calculateElevatorStops(matrix [][]int) [][]int {
 	for floor := int(constant.FIRST_FLOOR); floor < rowLength; floor++ {
 		flagOrderSet = false
 		if matrix[constant.UP_BUTTON][floor] == 1 || matrix[constant.DOWN_BUTTON][floor] == 1 {
-			// Check if there's an elevator in the floor
+
+			//Sjekker om jeg har en heis i etasjen
 			for elev := int(constant.FIRST_ELEV); elev < colLength; elev++ {
 				// If in floor, give order if elevator is idle, stopped or has doors open
 				if matrix[elev][constant.FLOOR] == floor && (matrix[elev][constant.ELEV_STATE] == int(constant.IDLE) ||
@@ -478,11 +546,20 @@ func calculateElevatorStops(matrix [][]int) [][]int {
 /*Broadcasts last item over ch_repeatedBcast */
 func repeatedBroadcast(ch_repeatedBcast <-chan [][]int, ch_updateInterval <-chan int, ch_transmit chan<- [][]int, ch_transmitSlave chan<- [][]int) {
 	var matrix [][]int
+	// fmt.Println("repeatedBroadcast: Waiting on ch_repeatedBcast...")
 	matrix = <-ch_repeatedBcast
+	// prev_matrix := matrix
+	// fmt.Println("repeatedBroadcast: Recieved over ch_repeatedBcast: ", matrix)
 	for {
 		select {
 		case msg := <-ch_repeatedBcast:
+			// fmt.Println("repeatedBroadcast: Recieved matrix over ch_repeatedBcast")
+
+			//	fmt.Println(msg)
 			matrix = msg
+			// if !debugCheckMatrixEqual(matrix, prev_matrix) {
+			// 	fmt.Println("Master matrix = ", matrix)
+			// }
 		default:
 			<-ch_updateInterval      // Send over channel once each UPDATE_INTERVAL
 			switch flagMasterSlave { // Send over channel dependent on MASTER/SLAVE state
@@ -490,6 +567,7 @@ func repeatedBroadcast(ch_repeatedBcast <-chan [][]int, ch_updateInterval <-chan
 				ch_transmit <- matrix
 			case constant.SLAVE:
 				ch_transmitSlave <- matrix
+				// fmt.Println("repeatedBroadcast: Sent matrix over ch_transmitSlave (SLAVE)")
 			}
 		}
 	}
@@ -510,22 +588,3 @@ func debugCheckMatrixEqual(m1 [][]int, m2 [][]int) bool {
 	}
 	return true
 }
-
-/*  Converts the IP to an int. Example:
-    "10.100.23.253" -> 253 */
-// func getLocalIP() int {
-// 	returnedIP, err := localip.LocalIP()
-// 	if err != nil {
-// 		fmt.Println(err)
-// 		returnedIP = "DISCONNECTED"
-// 	}
-//
-// 	IPlength := len(returnedIP)
-// 	for i := IPlength - 1; i > 0; i-- {
-// 		if returnedIP[i] == '.' {
-// 			returnedIP = returnedIP[i+1 : IPlength]
-// 			break
-// 		}
-// 	}
-// 	return file_IO.StringToNumbers(returnedIP)[0] // Vector of 1 element
-// }
