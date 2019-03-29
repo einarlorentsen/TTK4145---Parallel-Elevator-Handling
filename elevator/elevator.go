@@ -84,6 +84,7 @@ func elevatorHandler(localMatrix [][]int, ch_matrixMasterTx chan<- [][]int, ch_e
 			// Update floor lights
 			localMatrix = writeLocalMatrix(ch_elevTx, localMatrix, int(constant.UP_BUTTON), int(constant.FLOOR), int(floor))
 		case state := <-ch_state: // Changed state
+			ch_buttonPressed <- true
 			// fmt.Println("elevatorHandler: Recieved ch_state, ", state)
 			localMatrix = writeLocalMatrix(ch_elevTx, localMatrix, int(constant.UP_BUTTON), int(constant.ELEV_STATE), int(state))
 		case hallOrder := <-ch_hallOrder: // Recieved hall-order

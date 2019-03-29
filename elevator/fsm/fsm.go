@@ -69,10 +69,7 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 					fmt.Println("MATRIX MASTER: ", updateMatrixMaster)
 					order_handler.SetHallLights(updateMatrixMaster) //Setting hall lights (NEW - had it in this module before)
 					matrixMaster = updateMatrixMaster
-					// fmt.Println("ElevFSM: ", matrixMaster)
-				case updateCabOrders := <-ch_cabOrderRx:
-					cabOrders = updateCabOrders
-				default:
+
 					newElevDir = checkQueue(currentFloor, lastElevDir, matrixMaster, cabOrders)
 					if newElevDir == elevio.MD_Stop {
 						// fmt.Println("ElevFSM: IDLE --> DOORS_OPEN")
@@ -90,6 +87,10 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 						localState = constant.MOVE
 						break checkIDLE // Break for-select
 					}
+					// fmt.Println("ElevFSM: ", matrixMaster)
+				case updateCabOrders := <-ch_cabOrderRx:
+					cabOrders = updateCabOrders
+				default:
 				}
 				if localState != constant.IDLE {
 					// fmt.Println("ElevFSM: if localState != constant.IDLE")

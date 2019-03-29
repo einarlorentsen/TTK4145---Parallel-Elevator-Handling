@@ -1,6 +1,6 @@
 package constant
 
-const N_FLOORS = 4
+const N_FLOORS = 9
 
 /* Enumeration STATE */
 type STATE int
