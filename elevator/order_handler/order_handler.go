@@ -1,8 +1,6 @@
 package order_handler
 
 import (
-	"fmt"
-
 	"../../constant"
 	"../../file_IO"
 	"../../master_slave_fsm"
@@ -39,19 +37,20 @@ func InitLocalElevatorMatrix() [][]int {
 }
 
 /* Polls all buttons and sends recieved orders out on their respective channels */
-func UpdateOrderMatrix(ch_hallOrder chan<- elevio.ButtonEvent, ch_cabOrder chan<- elevio.ButtonEvent) {
+func UpdateOrderMatrix(ch_hallOrder chan<- elevio.ButtonEvent, ch_cabOrder chan<- elevio.ButtonEvent, ch_buttonPressed chan<- bool) {
 	ch_pollButtons := make(chan elevio.ButtonEvent)
 	go elevio.PollButtons(ch_pollButtons) // Returns slice [floor, button]
 	for {
 		select {
 		case order := <-ch_pollButtons:
-			fmt.Println("UpdateOrderMatrix: Recieved ch_pollButtons")
+			ch_buttonPressed <- true
+			// fmt.Println("UpdateOrderMatrix: Recieved ch_pollButtons")
 			if order.Button == elevio.BT_Cab {
 				ch_cabOrder <- order
-				fmt.Println("UpdateOrderMatrix: sent over ch_cabOrder")
+				// fmt.Println("UpdateOrderMatrix: sent over ch_cabOrder")
 			} else {
 				ch_hallOrder <- order
-				fmt.Println("UpdateOrderMatrix: sent over ch_hallOrder")
+				// fmt.Println("UpdateOrderMatrix: sent over ch_hallOrder")
 			}
 		}
 	}
@@ -69,14 +68,14 @@ func UpdateCabOrders(ch_cabOrder <-chan elevio.ButtonEvent, ch_cabServed <-chan 
 			setCabLights(cabOrders)
 			tmpBackup[0] = cabOrders
 			file_IO.WriteFile(constant.BACKUP_FILENAME, tmpBackup)
-			fmt.Println("updateCabOrders: Added cabOrder floor: ", buttonEvent.Floor)
+			// fmt.Println("updateCabOrders: Added cabOrder floor: ", buttonEvent.Floor)
 		case floorServed := <-ch_cabServed:
 			cabOrders[floorServed] = 0
 			ch_cabOrderArray <- cabOrders // Send to elevator fsm
 			setCabLights(cabOrders)
 			tmpBackup[0] = cabOrders
 			file_IO.WriteFile(constant.BACKUP_FILENAME, tmpBackup)
-			fmt.Println("updateCabOrders: Deleted cabOrder floor: ", floorServed)
+			// fmt.Println("updateCabOrders: Deleted cabOrder floor: ", floorServed)
 		}
 	}
 }
@@ -91,18 +90,31 @@ func setCabLights(cabOrders []int) {
 	}
 }
 
-func setHallLights(matrixMaster [][]int) {
-	for index := int(constant.FIRST_FLOOR); index < len(matrixMaster[constant.UP_BUTTON]); index++ {
-		if matrixMaster[constant.UP_BUTTON][index] == 1 {
-			elevio.SetButtonLamp(elevio.BT_HallUp, index-int(constant.FIRST_FLOOR), true)
-		} else if matrixMaster[constant.UP_BUTTON][index] == 0 {
-			elevio.SetButtonLamp(elevio.BT_HallUp, index-int(constant.FIRST_FLOOR), false)
+func SetHallLights(matrixMaster [][]int) {
+	// for index := int(constant.FIRST_FLOOR); index < len(matrixMaster[constant.UP_BUTTON]); index++ {
+	// 	if matrixMaster[constant.UP_BUTTON][index] == 1 {
+	// 		elevio.SetButtonLamp(elevio.BT_HallUp, index-int(constant.FIRST_FLOOR), true)
+	// 	} else if matrixMaster[constant.UP_BUTTON][index] == 0 {
+	// 		elevio.SetButtonLamp(elevio.BT_HallUp, index-int(constant.FIRST_FLOOR), false)
+	// 	}
+	//
+	// 	if matrixMaster[constant.DOWN_BUTTON][index] == 1 {
+	// 		elevio.SetButtonLamp(elevio.BT_HallDown, int(constant.FIRST_FLOOR)-index, true)
+	// 	} else if matrixMaster[constant.DOWN_BUTTON][index] == 0 {
+	// 		elevio.SetButtonLamp(elevio.BT_HallDown, int(constant.FIRST_FLOOR)-index, false)
+	// 	}
+	// }
+	for floor := int(constant.FIRST_FLOOR); floor < len(matrixMaster[constant.UP_BUTTON]); floor++ {
+		if matrixMaster[constant.UP_BUTTON][floor] == 1 {
+			elevio.SetButtonLamp(elevio.BT_HallUp, floor-int(constant.FIRST_FLOOR), true)
+		} else {
+			elevio.SetButtonLamp(elevio.BT_HallUp, floor-int(constant.FIRST_FLOOR), false)
 		}
 
-		if matrixMaster[constant.DOWN_BUTTON][index] == 1 {
-			elevio.SetButtonLamp(elevio.BT_HallDown, int(constant.FIRST_FLOOR)-index, true)
-		} else if matrixMaster[constant.DOWN_BUTTON][index] == 0 {
-			elevio.SetButtonLamp(elevio.BT_HallDown, int(constant.FIRST_FLOOR)-index, false)
+		if matrixMaster[constant.DOWN_BUTTON][floor] == 1 {
+			elevio.SetButtonLamp(elevio.BT_HallDown, floor-int(constant.FIRST_FLOOR), true)
+		} else {
+			elevio.SetButtonLamp(elevio.BT_HallDown, floor-int(constant.FIRST_FLOOR), false)
 		}
 	}
 }

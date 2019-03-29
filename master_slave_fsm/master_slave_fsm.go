@@ -26,7 +26,7 @@ func SetLocalIP() {
 	// LocalIP = os.Getpid()
 }
 
-func InitMasterSlave(ch_elevTransmit <-chan [][]int, ch_elevRecieve chan<- [][]int) {
+func InitMasterSlave(ch_elevTransmit <-chan [][]int, ch_elevRecieve chan<- [][]int, ch_buttonPressed <-chan bool) {
 	fmt.Println("Initializing Master/Slave state machine...")
 	var matrixMaster [][]int
 
@@ -69,7 +69,7 @@ func InitMasterSlave(ch_elevTransmit <-chan [][]int, ch_elevRecieve chan<- [][]i
 	go checkDisconnectedPeers(ch_peerUpdate, ch_peerDisconnected)
 
 	fmt.Println("Master/Slave state machine initialized.")
-	stateChange(matrixMaster, constant.SLAVE, ch_recieve, ch_recieveSlave, ch_peerDisconnected, ch_repeatedBcast, ch_recieveLocal, ch_recieveSlaveLocal)
+	stateChange(matrixMaster, constant.SLAVE, ch_recieve, ch_recieveSlave, ch_peerDisconnected, ch_repeatedBcast, ch_recieveLocal, ch_recieveSlaveLocal, ch_buttonPressed)
 }
 
 // func elevListen(ch_elevTransmit <-chan [][]int, ch_elevRecieve <-chan [][]int) {
@@ -84,13 +84,13 @@ func InitMasterSlave(ch_elevTransmit <-chan [][]int, ch_elevRecieve chan<- [][]i
 // }
 
 /* Continously swapping states */
-func stateChange(matrixMaster [][]int, currentState constant.STATE, ch_recieve <-chan [][]int, ch_recieveSlave <-chan [][]int, ch_peerDisconnected <-chan int, ch_repeatedBcast chan<- [][]int, ch_recieveLocal chan<- [][]int, ch_recieveSlaveLocal <-chan [][]int) {
+func stateChange(matrixMaster [][]int, currentState constant.STATE, ch_recieve <-chan [][]int, ch_recieveSlave <-chan [][]int, ch_peerDisconnected <-chan int, ch_repeatedBcast chan<- [][]int, ch_recieveLocal chan<- [][]int, ch_recieveSlaveLocal <-chan [][]int, ch_buttonPressed <-chan bool) {
 	for {
 		switch currentState {
 		case constant.MASTER:
-			currentState = stateMaster(matrixMaster, ch_recieve, ch_recieveSlave, ch_peerDisconnected, ch_repeatedBcast, ch_recieveLocal)
+			currentState = stateMaster(matrixMaster, ch_recieve, ch_recieveSlave, ch_peerDisconnected, ch_repeatedBcast, ch_recieveLocal, ch_buttonPressed)
 		case constant.SLAVE:
-			currentState = stateSlave(ch_recieve, ch_repeatedBcast, ch_recieveLocal, ch_recieveSlaveLocal)
+			currentState = stateSlave(ch_recieve, ch_repeatedBcast, ch_recieveLocal, ch_recieveSlaveLocal, ch_buttonPressed)
 		}
 	}
 }
@@ -104,7 +104,7 @@ func stateChange(matrixMaster [][]int, currentState constant.STATE, ch_recieve <
 /* ELEV N    |    |     |       |            |              |       | .. |        | */
 /* Matrix indexing: [ROW][COL] */
 
-func stateMaster(matrixMaster [][]int, ch_recieve <-chan [][]int, ch_recieveSlave <-chan [][]int, ch_peerDisconnected <-chan int, ch_repeatedBcast chan<- [][]int, ch_recieveLocal chan<- [][]int) constant.STATE {
+func stateMaster(matrixMaster [][]int, ch_recieve <-chan [][]int, ch_recieveSlave <-chan [][]int, ch_peerDisconnected <-chan int, ch_repeatedBcast chan<- [][]int, ch_recieveLocal chan<- [][]int, ch_buttonPressed <-chan bool) constant.STATE {
 	flagMasterSlave = constant.MASTER
 	fmt.Println("Masterstate activated.")
 
@@ -150,7 +150,8 @@ func stateMaster(matrixMaster [][]int, ch_recieve <-chan [][]int, ch_recieveSlav
 			matrixMaster = calculateElevatorStops(matrixMaster)
 
 			// Broadcast the whole
-			ch_recieveLocal <- matrixMaster // Send to local elevator (localOrderHandler)
+			go sendMatrixMasterToElevator(ch_buttonPressed, ch_recieveLocal, matrixMaster)
+
 			// fmt.Println("MASTER: Sent on ch_recieveLocal")
 			ch_repeatedBcast <- matrixMaster
 			// fmt.Println("MASTER: Sent on ch_repeatBcast")
@@ -158,8 +159,14 @@ func stateMaster(matrixMaster [][]int, ch_recieve <-chan [][]int, ch_recieveSlav
 	}
 }
 
+func sendMatrixMasterToElevator(ch_buttonPressed <-chan bool, ch_recieveLocal chan<- [][]int, matrixMaster [][]int) {
+	<-ch_buttonPressed
+	fmt.Println("Sending matrix master to Elevator")
+	ch_recieveLocal <- matrixMaster // Send to local elevator (localOrderHandler)
+}
+
 /* Slave state, checks for alive masters. Transitions if no masters on UDP. */
-func stateSlave(ch_recieve <-chan [][]int, ch_repeatedBcast chan<- [][]int, ch_recieveLocal chan<- [][]int, ch_recieveSlaveLocal <-chan [][]int) constant.STATE {
+func stateSlave(ch_recieve <-chan [][]int, ch_repeatedBcast chan<- [][]int, ch_recieveLocal chan<- [][]int, ch_recieveSlaveLocal <-chan [][]int, ch_buttonPressed <-chan bool) constant.STATE {
 	// var masterMatrix [][]int		// masterMatrix not used, only checks for signal on channel
 	ch_slaveAlone := make(chan bool)
 	ch_killTimer := make(chan bool)
@@ -403,6 +410,7 @@ func mergeRecievedInfo(matrixMaster [][]int, recievedMatrix [][]int) [][]int {
 func checkOrderServed(matrixMaster [][]int, recievedMatrix [][]int) [][]int {
 	currentFloor := recievedMatrix[constant.UP_BUTTON][constant.FLOOR]
 	if checkStoppedOrDoorsOpen(recievedMatrix) == true {
+		fmt.Println("Removing hall orders")
 		matrixMaster[constant.UP_BUTTON][int(constant.FIRST_FLOOR)+currentFloor] = 0
 		matrixMaster[constant.DOWN_BUTTON][int(constant.FIRST_FLOOR)+currentFloor] = 0
 	}
