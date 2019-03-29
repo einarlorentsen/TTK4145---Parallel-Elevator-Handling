@@ -2,6 +2,7 @@ package master_slave_fsm
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 
@@ -22,8 +23,8 @@ var flagDisconnectedPeer bool = false
 var flagMasterSlave constant.STATE
 
 func SetLocalIP() {
-	LocalIP = getLocalIP() // ENABLE AT LAB, DOESNT WORK ELSEWHERE?
-	// LocalIP = os.Getpid()
+	// LocalIP = getLocalIP() // ENABLE AT LAB, DOESNT WORK ELSEWHERE?
+	LocalIP = os.Getpid()
 }
 
 func InitMasterSlave(ch_elevTransmit <-chan [][]int, ch_elevRecieve chan<- [][]int, ch_buttonPressed <-chan bool) {
@@ -178,11 +179,17 @@ func stateSlave(ch_recieve <-chan [][]int, ch_repeatedBcast chan<- [][]int, ch_r
 	for {
 		select {
 		case localMatrix := <-ch_recieveSlaveLocal: // Update repeated Bcasts with last local state
+			fmt.Println("stateSlave: localMatrix recieved")
 			ch_repeatedBcast <- localMatrix
+			fmt.Println("stateSlave: localMatrix sent to ch_repeatedBcast")
 		case masterMatrix := <-ch_recieve: // Recieves masterMatrix on channel from master over UDP. //masterMatrix = <-ch_recieve:
-			ch_killTimer <- true  // Kill time
-			flagSlaveAlone = true // Reset timer-flag
+			fmt.Println("stateSlave: masterMatrix recieved")
+			if flagSlaveAlone == false {
+				ch_killTimer <- true  // Kill time
+				flagSlaveAlone = true // Reset timer-flag
+			}
 			ch_recieveLocal <- masterMatrix
+			fmt.Println("stateSlave: masterMatrix sent on ch_recieveLocal")
 		case <-ch_slaveAlone:
 			fmt.Println("SLAVE ID ", LocalIP, "is transitioning to MASTER")
 			return constant.MASTER
@@ -219,7 +226,9 @@ func localOrderHandler(ch_recieveLocal <-chan [][]int, ch_transmitSlave chan<- [
 		select {
 		case masterMatrix := <-ch_recieveLocal:
 			// fmt.Println("localOrderHandler: Sending masterMatrix on ch_recieveLocal")
+			fmt.Println("localOrderHandler: ch_recieveLocal recieved.")
 			ch_elevRecieve <- masterMatrix // masterMatrix TO elevator
+			fmt.Println("localOrderHandler: ch_elevRecieve sent.")
 			// fmt.Println("localOrderHandler: masterMatrix sent to ch_elevRecieve")
 		case localMatrix = <-ch_elevTransmit: // localMatrix FROM elevator
 			localMatrix[constant.UP_BUTTON][constant.SLAVE_MASTER] = int(flagMasterSlave) // Ensure correct state
