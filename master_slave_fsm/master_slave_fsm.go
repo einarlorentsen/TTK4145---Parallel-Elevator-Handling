@@ -86,6 +86,7 @@ func stateChange(matrixMaster [][]int, currentState constant.STATE, ch_recieve <
 
 func stateMaster(matrixMaster [][]int, ch_recieve <-chan [][]int, ch_recieveSlave <-chan [][]int, ch_peerDisconnected <-chan string, ch_repeatedBcast chan<- [][]int, ch_recieveLocal chan<- [][]int, ch_buttonPressed <-chan bool) constant.STATE {
 	flagMasterSlave = constant.MASTER
+	flagDisconnectedMatrixHandling := false
 	fmt.Println("Masterstate activated.")
 
 	// If matrixMaster is empty, generate masterMatrix for 1 elevator
@@ -108,25 +109,57 @@ func stateMaster(matrixMaster [][]int, ch_recieve <-chan [][]int, ch_recieveSlav
 			flagDisconnectedPeer = false
 			fmt.Println("flagDisconnectedPeer = false")
 			fmt.Println("case disconnectedIP: FINISHED")
-		case recievedMatrix := <-ch_recieveSlave:
-			// Merge info from recievedMatrix, append if new slave
-			matrixMaster = mergeRecievedInfo(matrixMaster, recievedMatrix)
-			// Remove served order at current floor in recievedMatrix
-			matrixMaster = checkOrderServed(matrixMaster, recievedMatrix)
-			// Insert unconfirmed orders UP/DOWN into matrixMaster
-			matrixMaster = mergeUnconfirmedOrders(matrixMaster, recievedMatrix)
-			// Clear orders
-			matrixMaster = clearCurrentOrders(matrixMaster)
-			// Calculate stop
-			matrixMaster = calculateElevatorStops(matrixMaster)
-			// Broadcast the whole
-			go sendMatrixMasterToElevator(ch_buttonPressed, ch_recieveLocal, matrixMaster)
-			// fmt.Println("MASTER: Sent on ch_recieveLocal")
+
+			sendMatrixMasterToElevator(ch_buttonPressed, ch_recieveLocal, matrixMaster)
+			fmt.Println("DC matrixMaster: ", matrixMaster)
 			ch_repeatedBcast <- matrixMaster
-			// fmt.Println("MASTER: Sent on ch_repeatBcast")
-		default:
+
+			flagDisconnectedMatrixHandling = true
+
+		case recievedMatrix := <-ch_recieveSlave:
+
+			// Matrix not properly updated elsewhere. Fix that and then confirm if
+			// this check really is neccessary.
+			switch flagDisconnectedMatrixHandling {
+			case true:
+				if matrixDimensionsEqual(matrixMaster, recievedMatrix) == true {
+					flagDisconnectedMatrixHandling = false
+				}
+			case false:
+				// Merge info from recievedMatrix, append if new slave
+				matrixMaster = mergeRecievedInfo(matrixMaster, recievedMatrix)
+				// Remove served order at current floor in recievedMatrix
+				matrixMaster = checkOrderServed(matrixMaster, recievedMatrix)
+				// Insert unconfirmed orders UP/DOWN into matrixMaster
+				matrixMaster = mergeUnconfirmedOrders(matrixMaster, recievedMatrix)
+				// Clear orders
+				matrixMaster = clearCurrentOrders(matrixMaster)
+				// Calculate stop
+				matrixMaster = calculateElevatorStops(matrixMaster)
+				// Broadcast the whole
+				sendMatrixMasterToElevator(ch_buttonPressed, ch_recieveLocal, matrixMaster)
+				// fmt.Println("MASTER: Sent on ch_recieveLocal")
+
+				fmt.Println("Update matrixMaster: ", matrixMaster)
+
+				ch_repeatedBcast <- matrixMaster
+				// fmt.Println("MASTER: Sent on ch_repeatBcast")
+			default:
+			}
 		}
 	}
+}
+
+/* */
+func matrixDimensionsEqual(matr1 [][]int, matr2 [][]int) bool {
+	col1 := len(matr1)
+	col2 := len(matr2)
+	row1 := len(matr1[0])
+	row2 := len(matr2[0])
+	if (col1 == col2) && (row1 == row2) {
+		return true
+	}
+	return false
 }
 
 func sendMatrixMasterToElevator(ch_buttonPressed <-chan bool, ch_recieveLocal chan<- [][]int, matrixMaster [][]int) {
@@ -137,6 +170,7 @@ func sendMatrixMasterToElevator(ch_buttonPressed <-chan bool, ch_recieveLocal ch
 /* Slave state, checks for alive masters. Transitions if no masters on UDP. */
 func stateSlave(ch_recieve <-chan [][]int, ch_repeatedBcast chan<- [][]int, ch_recieveLocal chan<- [][]int, ch_recieveSlaveLocal <-chan [][]int, ch_buttonPressed <-chan bool) constant.STATE {
 	// var masterMatrix [][]int		// masterMatrix not used, only checks for signal on channel
+	flagMasterSlave = constant.SLAVE
 	ch_slaveAlone := make(chan bool)
 	ch_killTimer := make(chan bool)
 	flagSlaveAlone := true // Assumes slave to be alone
@@ -144,12 +178,16 @@ func stateSlave(ch_recieve <-chan [][]int, ch_repeatedBcast chan<- [][]int, ch_r
 
 	for {
 		select {
+
+		// Limit the number of messages over ch_repeatedBcast
+		// NOTE PG: Do this later
 		case localMatrix := <-ch_recieveSlaveLocal: // Update repeated Bcasts with last local state
 			fmt.Println("stateSlave: localMatrix recieved")
 			ch_repeatedBcast <- localMatrix
 			fmt.Println("stateSlave: localMatrix sent to ch_repeatedBcast")
 		case masterMatrix := <-ch_recieve: // Recieves masterMatrix on channel from master over UDP. //masterMatrix = <-ch_recieve:
 			fmt.Println("stateSlave: masterMatrix recieved")
+			fmt.Println(masterMatrix)
 			if flagSlaveAlone == false {
 				ch_killTimer <- true  // Kill time
 				flagSlaveAlone = true // Reset timer-flag
@@ -191,7 +229,8 @@ func localOrderHandler(ch_recieveLocal <-chan [][]int, ch_transmitSlave chan<- [
 		select {
 		case masterMatrix := <-ch_recieveLocal:
 			// fmt.Println("localOrderHandler: Sending masterMatrix on ch_recieveLocal")
-			fmt.Println("localOrderHandler: ch_recieveLocal recieved.")
+			fmt.Println("localOrderHandler: masterMatrix from ch_recieveLocal")
+			fmt.Println(masterMatrix)
 			ch_elevRecieve <- masterMatrix // masterMatrix TO elevator
 			fmt.Println("localOrderHandler: ch_elevRecieve sent.")
 			// fmt.Println("localOrderHandler: masterMatrix sent to ch_elevRecieve")
@@ -289,6 +328,9 @@ func deleteDisconnectedPeer(matrixMaster [][]int, disconnectedIP string) [][]int
 	var peer int
 	for _, c := range disconnectedIP {
 		peer = int(c) // Cast the rune from string into a process ID integer
+		for i := 1; i < 100; i++ {
+			fmt.Println(peer)
+		}
 	}
 	for row := int(constant.FIRST_ELEV); row < len(matrixMaster); row++ {
 		if matrixMaster[row][constant.IP] == peer {
@@ -479,10 +521,10 @@ func calculateElevatorStops(matrix [][]int) [][]int {
 func repeatedBroadcast(ch_repeatedBcast <-chan [][]int, ch_updateInterval <-chan int, ch_transmit chan<- [][]int, ch_transmitSlave chan<- [][]int) {
 	var matrix [][]int
 	matrix = <-ch_repeatedBcast
+
 	for {
 		select {
-		case msg := <-ch_repeatedBcast:
-			matrix = msg
+		case matrix = <-ch_repeatedBcast:
 		default:
 			<-ch_updateInterval      // Send over channel once each UPDATE_INTERVAL
 			switch flagMasterSlave { // Send over channel dependent on MASTER/SLAVE state
@@ -519,7 +561,6 @@ func debugCheckMatrixEqual(m1 [][]int, m2 [][]int) bool {
 // 		fmt.Println(err)
 // 		returnedIP = "DISCONNECTED"
 // 	}
-//
 // 	IPlength := len(returnedIP)
 // 	for i := IPlength - 1; i > 0; i-- {
 // 		if returnedIP[i] == '.' {
