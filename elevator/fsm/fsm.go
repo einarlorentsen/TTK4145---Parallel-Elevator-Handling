@@ -62,7 +62,7 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 				//
 			default:
 				fmt.Println("Could not send ch_dirTX")
-
+			}
 			fmt.Println("IDLE: Sending state to local Matrix")
 			ch_stateTx <- localState
 			// Let igjennom cabOrders og masterMatrix etter bestillinger. Vi foretrekker bestillinger
