@@ -3,6 +3,7 @@ package main
 import (
 	// "./elevator/elevio"
 	// "./elevator/order_handler"
+
 	"./constant"
 	"./elevator"
 	"./elevator/elevio"
@@ -13,10 +14,14 @@ import (
 	"fmt"
 )
 
+var elevatorPort string = "15657"
+
 // default port 15657
 func main() {
 	fmt.Println("Main program started...")
-	elevio.Init("localhost:15658", constant.N_FLOORS) // Init elevatorServer
+	elevatorAddress := "localhost:" + elevatorPort
+	fmt.Println("Elevator address: ", elevatorAddress)
+	elevio.Init(elevatorAddress, constant.N_FLOORS) // Init elevatorServer
 
 	ch_elevTransmit := make(chan [][]int, 2*constant.N_FLOORS) // Elevator transmission, FROM elevator
 	ch_elevRecieve := make(chan [][]int, 2*constant.N_FLOORS)  // Elevator reciever,	TO elevator
