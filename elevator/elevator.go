@@ -38,8 +38,8 @@ func InitElevator(ch_elevTransmit chan<- [][]int, ch_elevRecieve <-chan [][]int,
 		fmt.Println("No backups found.")
 		cabOrders = order_handler.InitCabOrders([]int{})
 	} else {
-		fmt.Println("Backup found.")
 		cabOrders = order_handler.InitCabOrders(cabOrdersBackup[0])
+		fmt.Println("Backup found: ", cabOrders)
 		go backupSendToElevator(ch_cabOrderArray, cabOrders)
 	}
 

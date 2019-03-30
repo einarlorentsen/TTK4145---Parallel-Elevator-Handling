@@ -160,23 +160,33 @@ func stateSlave(ch_recieve <-chan [][]int, ch_repeatedBcast chan<- [][]int, ch_r
 	ch_killTimer := make(chan bool)
 	flagSlaveAlone := true // Assumes slave to be alone
 	fmt.Println("Slave-state initialized")
-
+	i := 1
 	// USE ch_repeatedBcast <- matrixMaster
 
 	// ALL CODE BELOW IS OK 23.03.2019
 	for {
 		select {
 		case localMatrix := <-ch_recieveSlaveLocal: // Update repeated Bcasts with last local state
+			fmt.Println("Slave iteration: ", i)
+			i++
 			fmt.Println("stateSlave: localMatrix recieved")
 			ch_repeatedBcast <- localMatrix
 			fmt.Println("stateSlave: localMatrix sent to ch_repeatedBcast")
 		case masterMatrix := <-ch_recieve: // Recieves masterMatrix on channel from master over UDP. //masterMatrix = <-ch_recieve:
-			fmt.Println("stateSlave: masterMatrix recieved")
+			fmt.Println("Slave iteration: ", i)
+			i++
+			fmt.Println("stateSlave: ID = ", LocalIP)
+			for n := 0; n < 2; n++ {
+				fmt.Println("stateSlave: masterMatrix recieved: ", masterMatrix)
+			}
 			if flagSlaveAlone == false {
+				fmt.Println("if flagSlaveAlone clause triggered")
 				ch_killTimer <- true  // Kill time
 				flagSlaveAlone = true // Reset timer-flag
+				fmt.Println("if flagSlaveAlone clause finished")
 			}
-			ch_recieveLocal <- masterMatrix
+			// ch_recieveLocal <- masterMatrix
+			go sendToChannel(ch_recieveLocal, masterMatrix)
 			fmt.Println("stateSlave: masterMatrix sent on ch_recieveLocal")
 		case <-ch_slaveAlone:
 			fmt.Println("SLAVE ID ", LocalIP, "is transitioning to MASTER")
@@ -187,8 +197,14 @@ func stateSlave(ch_recieve <-chan [][]int, ch_repeatedBcast chan<- [][]int, ch_r
 				flagSlaveAlone = false
 			}
 		}
+
 	}
 	// return MASTER
+}
+
+func sendToChannel(ch_transmit chan<- [][]int, matrix [][]int) {
+	ch_transmit <- matrix
+	fmt.Println("sendToChannel: ", matrix)
 }
 
 func slaveTimer(ch_slaveAlone chan<- bool, ch_killTimer <-chan bool) {
@@ -210,24 +226,28 @@ elevators current state which is broadcast to master over UDP. */
 func localOrderHandler(ch_recieveLocal <-chan [][]int, ch_transmitSlave chan<- [][]int, ch_elevRecieve chan<- [][]int, ch_elevTransmit <-chan [][]int, ch_recieveSlaveLocal chan<- [][]int) {
 	localMatrix := InitLocalMatrix()
 	ch_recieveSlaveLocal <- localMatrix
+	i := 1
 	for {
 		select {
 		case masterMatrix := <-ch_recieveLocal:
-			// fmt.Println("localOrderHandler: Sending masterMatrix on ch_recieveLocal")
-			fmt.Println("localOrderHandler: ch_recieveLocal recieved.")
-			ch_elevRecieve <- masterMatrix // masterMatrix TO elevator
-			fmt.Println("localOrderHandler: ch_elevRecieve sent.")
-			// fmt.Println("localOrderHandler: masterMatrix sent to ch_elevRecieve")
+			fmt.Println("localOrderHandler: Iteration ", i)
+			i++
+			// ch_elevRecieve <- masterMatrix // masterMatrix TO elevator
+			go sendToChannel(ch_elevRecieve, masterMatrix)
+			fmt.Println("localOrderHandler: ch_elevRecieve sent (to elevator): ", masterMatrix)
 		case localMatrix = <-ch_elevTransmit: // localMatrix FROM elevator
 			localMatrix[constant.UP_BUTTON][constant.SLAVE_MASTER] = int(flagMasterSlave) // Ensure correct state
 			localMatrix[constant.UP_BUTTON][constant.IP] = LocalIP
-			fmt.Println("case mottar fra ch_elevTransmit") // Ensure correct IP
+			// fmt.Println("case mottar fra ch_elevTransmit") // Ensure correct IP
+			fmt.Println("localOrderHandler: Waiting on ch_transmitSlave... ")
 			ch_transmitSlave <- localMatrix
-			fmt.Println("mottok localMatrix")
-			if flagMasterSlave == constant.SLAVE {
+			// fmt.Println("mottok localMatrix")
+			if flagMasterSlave == constant.SLAVE { // COMMENT THIS BACK IN
 				ch_recieveSlaveLocal <- localMatrix
-				fmt.Println("localOrderHandler: Sent localMatrix")
+				// fmt.Println("localOrderHandler: Sent localMatrix")
 			}
+			fmt.Println("localOrderHandler: Iteration ", i)
+			i++
 		default:
 
 		}

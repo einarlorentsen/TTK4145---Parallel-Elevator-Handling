@@ -16,7 +16,6 @@ import (
 
 var elevatorPort string = "15657"
 
-// default port 15657
 func main() {
 	fmt.Println("Main program started...")
 	elevatorAddress := "localhost:" + elevatorPort
