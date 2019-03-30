@@ -1,5 +1,7 @@
 package constant
 
+import "os"
+
 const N_FLOORS = 4
 
 /* Enumeration STATE */
@@ -43,3 +45,5 @@ const BACKUP_FILENAME = "backup.txt"
 const PORT_bcast = 16309      //16569
 const PORT_slaveBcast = 14152 //16570
 const PORT_peers = 14150      //15647
+
+var LocalIP int = os.Getpid()
