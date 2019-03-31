@@ -252,12 +252,11 @@ func localOrderHandler(ch_recieveLocal <-chan [][]int, ch_transmitSlave chan<- [
 				ch_recieveSlaveLocal <- localMatrix
 				// // fmt.Println("localOrderHandler: Sent localMatrix")
 			}
-			// fmt.Println("localOrderHandler: Iteration ", i)
-			i++
+
 		case masterMatrix := <-ch_recieveLocal:
 			prevMasterMatrix = masterMatrix
-			fmt.Println("localOrderHandler: Recieved ch_recieveLocal; ")
-			fmt.Println(masterMatrix)
+			// fmt.Println("localOrderHandler: Recieved ch_recieveLocal; ")
+			// fmt.Println(masterMatrix)
 
 		case <-ch_sendToElevTick:
 			fmt.Println("localOrderHandler: Attempting to send to elevator...")
