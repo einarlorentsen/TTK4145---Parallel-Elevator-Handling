@@ -234,7 +234,10 @@ func slaveTimer(ch_slaveAlone chan<- bool, ch_killTimer <-chan bool) {
 elevators current state which is broadcast to master over UDP. */
 func localOrderHandler(ch_recieveLocal <-chan [][]int, ch_transmitSlave chan<- [][]int, ch_elevRecieve chan<- [][]int, ch_elevTransmit <-chan [][]int, ch_recieveSlaveLocal chan<- [][]int) {
 	localMatrix := InitLocalMatrix()
+	ch_sendToElevTick := make(chan int)
+	go tickCounterCustom(ch_sendToElevTick)
 	ch_recieveSlaveLocal <- localMatrix
+	prevMasterMatrix := <-ch_recieveLocal
 	i := 1
 	for {
 		select {
@@ -252,15 +255,18 @@ func localOrderHandler(ch_recieveLocal <-chan [][]int, ch_transmitSlave chan<- [
 			// fmt.Println("localOrderHandler: Iteration ", i)
 			i++
 		case masterMatrix := <-ch_recieveLocal:
+			prevMasterMatrix = masterMatrix
 			fmt.Println("localOrderHandler: Recieved ch_recieveLocal; ")
 			fmt.Println(masterMatrix)
+
+		case <-ch_sendToElevTick:
+			fmt.Println("localOrderHandler: Attempting to send to elevator...")
+			ch_elevRecieve <- prevMasterMatrix // masterMatrix TO elevator
+			// go sendToChannel(ch_elevRecieve, masterMatrix)
+			fmt.Println("localOrderHandler: Sent to elevator: ", prevMasterMatrix)
+			fmt.Println("ch_elevRecieve queue size: ", len(ch_elevRecieve))
 			fmt.Println("localOrderHandler: Iteration ", i)
 			i++
-			fmt.Println("localOrderHandler: Attempting to send to elevator...")
-			ch_elevRecieve <- masterMatrix // masterMatrix TO elevator
-			// go sendToChannel(ch_elevRecieve, masterMatrix)
-			fmt.Println("localOrderHandler: Sent to elevator: ", masterMatrix)
-			fmt.Println("ch_elevRecieve queue size: ", len(ch_elevRecieve))
 		}
 	}
 }
@@ -333,6 +339,12 @@ func getLocalIP() int {
 /* Ticks every UPDATE_INTERVAL milliseconds */
 func tickCounter(ch_updateInterval chan<- int) {
 	ticker := time.NewTicker(constant.UPDATE_INTERVAL * time.Millisecond)
+	for range ticker.C {
+		ch_updateInterval <- 1
+	}
+}
+func tickCounterCustom(ch_updateInterval chan<- int) {
+	ticker := time.NewTicker(500 * time.Millisecond)
 	for range ticker.C {
 		ch_updateInterval <- 1
 	}
