@@ -43,7 +43,7 @@ const (
 const UPDATE_INTERVAL = 100     // Tick time in milliseconds, UDP broadcast
 const UPDATE_MASTER_SLAVE = 150 // Milliseconds
 // const UPDATE_SLAVE = 75
-const UPDATE_INTERNAL = 100
+const UPDATE_INTERNAL = 100 // Internal NON-UDP communication
 const BACKUP_FILENAME = "backup.txt"
 const PORT_bcast = 16309      //16569
 const PORT_slaveBcast = 14152 //16570
