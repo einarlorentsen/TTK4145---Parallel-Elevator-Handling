@@ -274,15 +274,15 @@ func checkCurrentFloor(row int, currentFloor int, matrixMaster [][]int, cabOrder
 func checkQueue(currentFloor int, lastElevDir elevio.MotorDirection, matrixMaster [][]int, cabOrders []int) elevio.MotorDirection {
 	var direction elevio.MotorDirection = elevio.MD_Idle // // fmt.Println("fsm: checkQueue: cabOrders: ", cabOrders)
 	for i := 0; i < 2; i++ {
-		fmt.Println(" ")
+		// fmt.Println(" ")
 	}
-	fmt.Println("LocalID: ", constant.LocalIP)
-	fmt.Println(matrixMaster)
+	// fmt.Println("LocalID: ", constant.LocalIP)
+	// fmt.Println(matrixMaster)
 	for row := int(constant.FIRST_ELEV); row < len(matrixMaster); row++ {
 		// fmt.Println("matrixMaster[row][constant.IP]: ", matrixMaster[row][constant.IP], " | LocalIP: ", constant.LocalIP)
 		if matrixMaster[row][constant.IP] == constant.LocalIP { //Check if order in current floor
-			fmt.Println("matrixMaster ID-field: ", matrixMaster[row][constant.IP], " at row: ", row)
-			fmt.Println("Row: ", matrixMaster[row])
+			// fmt.Println("matrixMaster ID-field: ", matrixMaster[row][constant.IP], " at row: ", row)
+			// fmt.Println("Row: ", matrixMaster[row])
 			if matrixMaster[row][int(constant.FIRST_FLOOR)+currentFloor] == 1 || cabOrders[currentFloor] == 1 {
 				printDir(elevio.MD_Stop, "MD_Stop")
 				return elevio.MD_Stop
@@ -314,29 +314,29 @@ func checkQueue(currentFloor int, lastElevDir elevio.MotorDirection, matrixMaste
 }
 func printDir(dir elevio.MotorDirection, str string) {
 	if dir != elevio.MD_Idle {
-		fmt.Println("checkQueue: dir: ", dir, "at ", str)
+		// fmt.Println("checkQueue: dir: ", dir, "at ", str)
 	}
 }
 
 func checkAbove(row int, currentFloor int, matrixMaster [][]int, cabOrders []int) elevio.MotorDirection {
 	for floor := (int(constant.FIRST_FLOOR) + currentFloor + 1); floor < len(matrixMaster[0]); floor++ {
 		if matrixMaster[row][floor] == 1 || cabOrders[floor-int(constant.FIRST_FLOOR)] == 1 {
-			fmt.Println("checkAbove: ", elevio.MD_Up, " MD_Up")
+			// fmt.Println("checkAbove: ", elevio.MD_Up, " MD_Up")
 			return elevio.MD_Up
 		}
 	}
-	fmt.Println("checkAbove: ", elevio.MD_Idle, " MD_Idle")
+	// fmt.Println("checkAbove: ", elevio.MD_Idle, " MD_Idle")
 	return elevio.MD_Idle
 }
 
 func checkBelow(row int, currentFloor int, matrixMaster [][]int, cabOrders []int) elevio.MotorDirection {
 	for floor := (int(constant.FIRST_FLOOR) + currentFloor - 1); floor >= int(constant.FIRST_FLOOR); floor-- {
 		if matrixMaster[row][floor] == 1 || cabOrders[floor-int(constant.FIRST_FLOOR)] == 1 {
-			fmt.Println("checkBelow: ", elevio.MD_Down, " MD_Down")
+			// fmt.Println("checkBelow: ", elevio.MD_Down, " MD_Down")
 			return elevio.MD_Down
 		}
 	}
-	fmt.Println("checkBelow: ", elevio.MD_Idle, " MD_Idle")
+	// fmt.Println("checkBelow: ", elevio.MD_Idle, " MD_Idle")
 	return elevio.MD_Idle
 }
 
