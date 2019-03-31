@@ -477,25 +477,24 @@ func calculateElevatorStops(matrix [][]int) [][]int {
 	// fmt.Println("Recieved: ", matrix)
 	// // fmt.Println("calculateElevatorStops: Calculate stops")
 	var flagOrderSet bool
-	rowLength := len(matrix[constant.UP_BUTTON])
+	rowLength := len(matrix[0])
 	colLength := len(matrix)
+	var currentFloor int
 
 	for floor := int(constant.FIRST_FLOOR); floor < rowLength; floor++ {
+		currentFloor = floor - int(constant.FIRST_FLOOR)
 		// fmt.Println("Floor: ", floor)
 		flagOrderSet = false
+
+		//SJEKKER OM VI HAR EN BESTILLING SOM MÅ DELEGERES
 		if matrix[constant.UP_BUTTON][floor] == 1 || matrix[constant.DOWN_BUTTON][floor] == 1 {
 
 			//Sjekker om jeg har en heis i etasjen
 			for elev := int(constant.FIRST_ELEV); elev < colLength; elev++ {
-				// fmt.Println("Elev: ", elev)
-				// If in floor, give order if elevator is idle, stopped or has doors open
-				if matrix[elev][constant.FLOOR] == floor && (matrix[elev][constant.ELEV_STATE] == int(constant.IDLE) ||
-					matrix[elev][constant.ELEV_STATE] == int(constant.STOP) || matrix[elev][constant.ELEV_STATE] == int(constant.DOORS_OPEN)) {
+				if matrix[elev][constant.FLOOR] == currentFloor && (matrix[elev][constant.ELEV_STATE] != int(constant.MOVE)) {
+					fmt.Println("ORDER: CURRENT FLOOR: ")
 					matrix[elev][floor] = 1 // Stop here
-					// flagOrderSet = true
-					break
-				} else if matrix[elev][floor] == 1 {
-					// flagOrderSet = true
+					flagOrderSet = true
 					break
 				}
 			}
@@ -505,14 +504,21 @@ func calculateElevatorStops(matrix [][]int) [][]int {
 				index := 1
 				for {
 					for elev := int(constant.FIRST_ELEV); elev < colLength; elev++ {
+						// fmt.Println("index up and down: ", index)
 						//Sjekker under meg, som har retning opp innenfor grense
-						if flagOrderSet == false && (matrix[elev][constant.FLOOR] == (floor - int(constant.FIRST_FLOOR) - index)) && (matrix[elev][constant.DIR] == int(elevio.MD_Up) || matrix[elev][constant.ELEV_STATE] == int(constant.IDLE)) && (floor-index >= int(constant.FIRST_FLOOR)) {
+						if flagOrderSet == false &&
+							(matrix[elev][constant.FLOOR] == (currentFloor - index)) &&
+							(matrix[elev][constant.DIR] == int(elevio.MD_Up) || matrix[elev][constant.ELEV_STATE] == int(constant.IDLE)) &&
+							(floor-index >= int(constant.FIRST_FLOOR)) {
 							matrix[elev][floor] = 1
 							flagOrderSet = true
 							break
 						}
 						//Sjekk over meg, som har retning ned og innenfor grensa
-						if flagOrderSet == false && (matrix[elev][constant.FLOOR] == (floor - int(constant.FIRST_FLOOR) + index)) && (matrix[elev][constant.DIR] == int(elevio.MD_Down) || matrix[elev][constant.ELEV_STATE] == int(constant.IDLE)) && (floor+index <= int(constant.FIRST_FLOOR)+constant.N_FLOORS) {
+						if flagOrderSet == false &&
+							(matrix[elev][constant.FLOOR] == (currentFloor + index)) &&
+							(matrix[elev][constant.DIR] == int(elevio.MD_Down) || matrix[elev][constant.ELEV_STATE] == int(constant.IDLE)) &&
+							(floor+index <= int(constant.FIRST_FLOOR)+constant.N_FLOORS) {
 							matrix[elev][floor] = 1
 							flagOrderSet = true
 							break
@@ -532,13 +538,19 @@ func calculateElevatorStops(matrix [][]int) [][]int {
 				for {
 					for elev := int(constant.FIRST_ELEV); elev < colLength; elev++ {
 						//Sjekker under meg, som har retning opp innenfor grense
-						if flagOrderSet == false && (matrix[elev][constant.FLOOR] == (floor - int(constant.FIRST_FLOOR) - index)) && (matrix[elev][constant.DIR] == int(elevio.MD_Up) || matrix[elev][constant.ELEV_STATE] == int(constant.IDLE)) && (floor-index >= int(constant.FIRST_FLOOR)) {
+						if flagOrderSet == false &&
+							(matrix[elev][constant.FLOOR] == (currentFloor - index)) &&
+							(matrix[elev][constant.DIR] == int(elevio.MD_Up) || matrix[elev][constant.ELEV_STATE] == int(constant.IDLE)) &&
+							(floor-index >= int(constant.FIRST_FLOOR)) {
 							matrix[elev][floor] = 1
 							flagOrderSet = true
 							break
 						}
 						//Sjekk over meg, som har retning ned og innenfor grensa ///HEEEER!!!! Eller rening NED. Hva med state?
-						if flagOrderSet == false && (matrix[elev][constant.FLOOR] == (floor - int(constant.FIRST_FLOOR) + index)) && (matrix[elev][constant.ELEV_STATE] == int(constant.IDLE)) && (floor+index <= int(constant.FIRST_FLOOR)+constant.N_FLOORS) {
+						if flagOrderSet == false &&
+							(matrix[elev][constant.FLOOR] == (currentFloor + index)) &&
+							(matrix[elev][constant.ELEV_STATE] == int(constant.IDLE)) &&
+							(floor+index <= int(constant.FIRST_FLOOR)+constant.N_FLOORS) {
 							matrix[elev][floor] = 1
 							flagOrderSet = true
 							break
@@ -558,13 +570,13 @@ func calculateElevatorStops(matrix [][]int) [][]int {
 				for {
 					for elev := int(constant.FIRST_ELEV); elev < colLength; elev++ {
 						//Sjekk over meg, som har retning ned og innenfor grensa
-						if flagOrderSet == false && (matrix[elev][constant.FLOOR] == (floor - int(constant.FIRST_FLOOR) + index)) && (matrix[elev][constant.DIR] == int(elevio.MD_Down) || matrix[elev][constant.ELEV_STATE] == int(constant.IDLE)) && (floor+index <= int(constant.FIRST_FLOOR)+constant.N_FLOORS) {
+						if flagOrderSet == false && (matrix[elev][constant.FLOOR] == (currentFloor + index)) && (matrix[elev][constant.DIR] == int(elevio.MD_Down) || matrix[elev][constant.ELEV_STATE] == int(constant.IDLE)) && (floor+index <= int(constant.FIRST_FLOOR)+constant.N_FLOORS) {
 							matrix[elev][floor] = 1
 							flagOrderSet = true
 							break
 						}
 						//Sjekker under meg, som har retning opp innenfor grense
-						if flagOrderSet == false && (matrix[elev][constant.FLOOR] == (floor - int(constant.FIRST_FLOOR) - index)) && (matrix[elev][constant.ELEV_STATE] == int(constant.IDLE)) && (floor-index) >= int(constant.FIRST_FLOOR) {
+						if flagOrderSet == false && (matrix[elev][constant.FLOOR] == (currentFloor - index)) && (matrix[elev][constant.ELEV_STATE] == int(constant.IDLE)) && (floor-index) >= int(constant.FIRST_FLOOR) {
 							matrix[elev][floor] = 1
 							flagOrderSet = true
 							break
@@ -580,13 +592,13 @@ func calculateElevatorStops(matrix [][]int) [][]int {
 			}
 
 			// Give to master if no elevator has gotten the order
-			if flagOrderSet == false {
-				for elev := int(constant.FIRST_ELEV); elev < colLength; elev++ {
-					if matrix[elev][constant.SLAVE_MASTER] == int(constant.MASTER) {
-						matrix[elev][floor] = 1
-					}
-				}
-			}
+			// if flagOrderSet == false {
+			// 	for elev := int(constant.FIRST_ELEV); elev < colLength; elev++ {
+			// 		if matrix[elev][constant.SLAVE_MASTER] == int(constant.MASTER) {
+			// 			matrix[elev][floor] = 1
+			// 		}
+			// 	}
+			// }
 
 		} // End order condition
 	} // End inf loop

@@ -282,6 +282,7 @@ func checkQueue(currentFloor int, lastElevDir elevio.MotorDirection, matrixMaste
 		// fmt.Println("matrixMaster[row][constant.IP]: ", matrixMaster[row][constant.IP], " | LocalIP: ", constant.LocalIP)
 		if matrixMaster[row][constant.IP] == constant.LocalIP { //Check if order in current floor
 			fmt.Println("matrixMaster ID-field: ", matrixMaster[row][constant.IP], " at row: ", row)
+			fmt.Println("Row: ", matrixMaster[row])
 			if matrixMaster[row][int(constant.FIRST_FLOOR)+currentFloor] == 1 || cabOrders[currentFloor] == 1 {
 				printDir(elevio.MD_Stop, "MD_Stop")
 				return elevio.MD_Stop
