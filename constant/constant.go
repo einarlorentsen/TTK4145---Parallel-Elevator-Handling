@@ -1,5 +1,7 @@
 package constant
 
+import "os"
+
 const N_FLOORS = 4
 
 /* Enumeration STATE */
@@ -38,8 +40,11 @@ const (
 	CAB         FIELD = 2
 )
 
-const UPDATE_INTERVAL = 100 // Tick time in milliseconds
+const UPDATE_INTERVAL = 100     // Tick time in milliseconds
+const UPDATE_MASTER_SLAVE = 350 // Milliseconds
 const BACKUP_FILENAME = "backup.txt"
 const PORT_bcast = 16309      //16569
 const PORT_slaveBcast = 14152 //16570
 const PORT_peers = 14150      //15647
+
+var LocalIP int = os.Getpid()

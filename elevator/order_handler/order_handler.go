@@ -1,9 +1,10 @@
 package order_handler
 
 import (
+	"fmt"
+
 	"../../constant"
 	"../../file_IO"
-	"../../master_slave_fsm"
 	"../elevio"
 	// "github.com/kentare/exercise-4-pipeline/elevio"
 )
@@ -27,8 +28,11 @@ func InitCabOrders(fromBackup []int) []int {
 }
 
 func InitLocalElevatorMatrix() [][]int {
-	localMatrix := master_slave_fsm.InitLocalMatrix()
-	localMatrix[constant.UP_BUTTON][constant.IP] = master_slave_fsm.LocalIP
+	localMatrix := make([][]int, 0)
+	for i := 0; i <= 1; i++ {
+		localMatrix = append(localMatrix, make([]int, 5+constant.N_FLOORS))
+	}
+	localMatrix[constant.UP_BUTTON][constant.IP] = constant.LocalIP
 	localMatrix[constant.UP_BUTTON][constant.DIR] = int(elevio.MD_Stop)
 	localMatrix[constant.UP_BUTTON][constant.FLOOR] = elevio.GetFloorInit()
 	localMatrix[constant.UP_BUTTON][constant.ELEV_STATE] = int(constant.IDLE)
@@ -106,15 +110,19 @@ func SetHallLights(matrixMaster [][]int) {
 	// }
 	for floor := int(constant.FIRST_FLOOR); floor < len(matrixMaster[constant.UP_BUTTON]); floor++ {
 		if matrixMaster[constant.UP_BUTTON][floor] == 1 {
+			fmt.Println("SetHallLights: ON UP_BUTTON ", floor-int(constant.FIRST_FLOOR))
 			elevio.SetButtonLamp(elevio.BT_HallUp, floor-int(constant.FIRST_FLOOR), true)
 		} else {
+			// fmt.Println("SetHallLights: OFF UP_BUTTON ", floor-int(constant.FIRST_FLOOR))
 			elevio.SetButtonLamp(elevio.BT_HallUp, floor-int(constant.FIRST_FLOOR), false)
 		}
 
 		if matrixMaster[constant.DOWN_BUTTON][floor] == 1 {
 			elevio.SetButtonLamp(elevio.BT_HallDown, floor-int(constant.FIRST_FLOOR), true)
+			fmt.Println("SetHallLights: ON DOWN_BUTTON ", floor-int(constant.FIRST_FLOOR))
 		} else {
 			elevio.SetButtonLamp(elevio.BT_HallDown, floor-int(constant.FIRST_FLOOR), false)
+			// fmt.Println("SetHallLights: OFF DOWN_BUTTON ", floor-int(constant.FIRST_FLOOR))
 		}
 	}
 }
