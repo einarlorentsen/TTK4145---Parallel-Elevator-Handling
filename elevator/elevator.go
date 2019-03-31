@@ -24,8 +24,9 @@ func TakeElevatorToNearestFloor() {
 }
 
 /* */
-func InitElevator(ch_elevTransmit chan<- [][]int, ch_elevRecieve <-chan [][]int, ch_buttonPressed chan<- bool) {
-	ch_matrixMasterRx := make(chan [][]int, 2*constant.N_FLOORS)
+// func InitElevator(ch_elevTransmit chan<- [][]int, ch_elevRecieve <-chan [][]int, ch_buttonPressed chan<- bool) {
+func InitElevator(ch_elevTransmit chan [][]int, ch_elevRecieve chan [][]int, ch_buttonPressed chan<- bool) {
+	ch_matrixMaster := make(chan [][]int, 2*constant.N_FLOORS)
 	ch_hallOrder := make(chan elevio.ButtonEvent, 2*constant.N_FLOORS) // Hall orders sent over channel
 	ch_cabOrder := make(chan elevio.ButtonEvent, constant.N_FLOORS)    // Cab orders sent over channel
 	ch_cabServed := make(chan int)
@@ -34,6 +35,7 @@ func InitElevator(ch_elevTransmit chan<- [][]int, ch_elevRecieve <-chan [][]int,
 	ch_floor := make(chan int)            // Channel for FLOOR updates
 	ch_state := make(chan constant.STATE) // Channel for STATE updates
 	ch_elevQuit := make(chan bool)
+	// ch_elevRecieveInternal := make(chan [][]int)
 	var cabOrders []int
 	var localMatrix [][]int
 	// order_handler.InitLocalElevatorMatrix()	// Init in fsm.initFSM
@@ -56,21 +58,40 @@ func InitElevator(ch_elevTransmit chan<- [][]int, ch_elevRecieve <-chan [][]int,
 
 	// ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_dirTx chan<- int, ch_floorTx chan<- int, ch_stateTx chan<- constant.STATE
 
-	go fsm.ElevFSM(ch_matrixMasterRx, ch_cabOrderArray, ch_dir, ch_floor, ch_state, ch_cabServed)
+	go fsm.ElevFSM(ch_matrixMaster, ch_cabOrderArray, ch_dir, ch_floor, ch_state, ch_cabServed)
 
 	go tickCounterInternal(ch_buttonPressed)
 
-	go elevatorHandler(localMatrix, ch_matrixMasterRx, ch_elevTransmit, ch_elevRecieve, ch_dir, ch_floor, ch_state, ch_hallOrder, ch_buttonPressed)
+	// go elevatorHandler(localMatrix, ch_matrixMasterRx, ch_elevTransmit, ch_elevRecieve, ch_dir, ch_floor, ch_state, ch_hallOrder, ch_buttonPressed)
+
+	go elevatorHandler(localMatrix, ch_matrixMaster, ch_elevTransmit, ch_elevRecieve, ch_dir, ch_floor, ch_state, ch_hallOrder, ch_buttonPressed)
+
+	// go elevatorReciever(ch_elevRecieve, ch_elevRecieveInternal)
+
 	<-ch_elevQuit
 }
 
+/* Recieve from master/slave and distribute */
+// func elevatorReciever(ch_elevRecieve <-chan [][]int, ch_elevRecieveInternal chan<- [][]int) {
+// 	var masterMatrix [][]int
+// 	for {
+// 		masterMatrix = <-ch_elevRecieve
+// 		fmt.Println("elevatorReciever: Recieved: ", masterMatrix)
+// 		ch_elevRecieveInternal <- masterMatrix
+// 		fmt.Println("elevatorReciever: Sent: ", masterMatrix)
+// 	}
+// }
+
 /* Listens on updates from elevator fsm and updates the elevators local matrix */
-func elevatorHandler(localMatrix [][]int, ch_matrixMasterTx chan<- [][]int, ch_elevTx chan<- [][]int, ch_elevRx <-chan [][]int, ch_dir <-chan int, ch_floor <-chan int, ch_state <-chan constant.STATE, ch_hallOrder <-chan elevio.ButtonEvent, ch_buttonPressed chan<- bool) {
+func elevatorHandler(localMatrix [][]int, ch_matrixMasterTx chan<- [][]int, ch_elevTx chan<- [][]int, ch_elevRecieve <-chan [][]int, ch_dir <-chan int, ch_floor <-chan int, ch_state <-chan constant.STATE, ch_hallOrder <-chan elevio.ButtonEvent, ch_buttonPressed chan<- bool) {
 	fmt.Println("elevatorHandler: Started")
 	for {
 		fmt.Println("elevatorHandler: Waiting on updates.")
 		select {
-		case matrixMaster := <-ch_elevRx: // Send new matrixMaster to elevator fsm
+		case matrixMaster := <-ch_elevRecieve: // Send new matrixMaster to elevator fsm
+			for n := 0; n < 10; n++ {
+				fmt.Println("elevatorHandler: Recieved: ", matrixMaster)
+			}
 			localMatrix = confirmOrders(matrixMaster, localMatrix)
 
 			fmt.Println("elevatorHandler: Sending localMatrix to elevator...")
@@ -94,8 +115,6 @@ func elevatorHandler(localMatrix [][]int, ch_matrixMasterTx chan<- [][]int, ch_e
 		case floor := <-ch_floor: // Arrived at floor
 			fmt.Println("elevatorHandler: Recieved ch_floor, ", floor)
 			ch_buttonPressed <- true
-			// Update to floor
-			// Update floor lights
 			localMatrix = writeLocalMatrix(ch_elevTx, localMatrix, int(constant.UP_BUTTON), int(constant.FLOOR), int(floor))
 		case state := <-ch_state: // Changed state
 			fmt.Println("elevatorHandler: Recieved ch_state, ", state)

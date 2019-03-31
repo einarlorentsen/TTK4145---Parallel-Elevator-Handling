@@ -31,8 +31,8 @@ func InitMasterSlave() {
 	// fullLocalIP, _ := LocalIP.LocalIP() // CURRENTLY PASSED TO PEERS TRANSMITTER. UNSURE
 	// fmt.Println("This machines LocalIP-ID is: ", LocalIP)
 
-	ch_elevTransmit := make(chan [][]int, 2*constant.N_FLOORS)  // Elevator transmission, FROM elevator
-	ch_elevRecieve := make(chan [][]int, 1+2*constant.N_FLOORS) // Elevator reciever,	TO elevator
+	ch_elevTransmit := make(chan [][]int, 2*constant.N_FLOORS) // Elevator transmission, FROM elevator
+	ch_elevRecieve := make(chan [][]int, 2*constant.N_FLOORS)  // Elevator reciever,	TO elevator
 
 	ch_updateInterval := make(chan int) // Periodic update-ticks
 	ch_peerUpdate := make(chan peers.PeerUpdate)
@@ -261,6 +261,7 @@ func localOrderHandler(ch_recieveLocal <-chan [][]int, ch_transmitSlave chan<- [
 			ch_elevRecieve <- masterMatrix // masterMatrix TO elevator
 			// go sendToChannel(ch_elevRecieve, masterMatrix)
 			fmt.Println("localOrderHandler: Sent to elevator: ", masterMatrix)
+			fmt.Println("ch_elevRecieve queue size: ", len(ch_elevRecieve))
 		}
 	}
 }

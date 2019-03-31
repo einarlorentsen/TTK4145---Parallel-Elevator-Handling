@@ -78,9 +78,9 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 					if newElevDir == elevio.MD_Stop {
 						// fmt.Println("ElevFSM: IDLE --> DOORS_OPEN")
 						// fmt.Println("ElemFSM: IDLE: Waiting on ch_dirTX...")
-						go asyncIntTransmit(ch_dirTx, int(newElevDir))
-						// ch_dirTx <- int(newElevDir)
-						// fmt.Println("ElemFSM: IDLE: Sent on ch_dirTX!")
+						// go asyncIntTransmit(ch_dirTx, int(newElevDir))
+						ch_dirTx <- int(newElevDir)
+						fmt.Println("ElemFSM: IDLE: Sent on ch_dirTX: ", newElevDir)
 						localState = constant.DOORS_OPEN
 						break checkIDLE // Break for-select
 					} else if newElevDir != elevio.MD_Idle {
@@ -88,8 +88,8 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 						lastElevDir = newElevDir
 						// fmt.Println("ElemFSM: IDLE: Waiting on ch_dirTX...")
 						ch_dirTx <- int(newElevDir) // STALLS HERE
-						go asyncIntTransmit(ch_dirTx, int(newElevDir))
-						// fmt.Println("ElemFSM: IDLE: Sent on ch_dirTX!")
+						// go asyncIntTransmit(ch_dirTx, int(newElevDir))
+						fmt.Println("ElemFSM: IDLE: Sent on ch_dirTX: ", newElevDir)
 						localState = constant.MOVE
 						break checkIDLE // Break for-select
 					}
@@ -120,7 +120,7 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 				// 	break checkIDLE // Break the for-select loop
 				// }
 			}
-			// fmt.Println("ElevFSM: End IDLE")
+			fmt.Println("ElevFSM: IDLE FINISHED")
 
 		case constant.MOVE:
 			fmt.Println("ElevFSM: MOVE")
@@ -178,18 +178,21 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 					break checkMOVE
 				}
 			}
+			fmt.Println("ElevFSM: MOVE FINISHED")
+			break
 
 		case constant.STOP:
-			// // fmt.Println("ElevFSM: STOP")
+			fmt.Println("ElevFSM: STOP")
 			newElevDir = elevio.MD_Stop
 			ch_stateTx <- localState
 			ch_dirTx <- int(newElevDir)
 			elevio.SetMotorDirection(elevio.MD_Stop)
 			localState = constant.DOORS_OPEN
+			fmt.Println("ElevFSM: STOP FINISHED")
 			break
 
 		case constant.DOORS_OPEN:
-			// // fmt.Println("ElevFSM: DOORS_OPEN")
+			fmt.Println("ElevFSM: DOORS_OPEN")
 			ch_timerKill := make(chan bool)
 			ch_timerFinished := make(chan bool)
 			if flagTimerActive == false {
@@ -246,16 +249,18 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 					// }
 				}
 			} // End DOORS_OPEN
+			fmt.Println("ElevFSM: DOORS_OPEN FINISHED")
+			break
 		}
 	}
 }
 
-func asyncIntTransmit(ch_transmit chan<- int, value int) {
-	ch_transmit <- value
-}
-func asyncStateTransmit(ch_transmit chan<- constant.STATE, value constant.STATE) {
-	ch_transmit <- value
-}
+// func asyncIntTransmit(ch_transmit chan<- int, value int) {
+// 	ch_transmit <- value
+// }
+// func asyncStateTransmit(ch_transmit chan<- constant.STATE, value constant.STATE) {
+// 	ch_transmit <- value
+// }
 
 func checkCurrentFloor(row int, currentFloor int, matrixMaster [][]int, cabOrders []int) elevio.MotorDirection {
 	if matrixMaster[row][constant.IP] == constant.LocalIP { //Check if order in current floor
