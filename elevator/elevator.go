@@ -29,12 +29,12 @@ func InitElevator(ch_elevTransmit chan [][]int, ch_elevRecieve chan [][]int, ch_
 	ch_matrixMaster := make(chan [][]int, 2*constant.N_FLOORS)
 	ch_hallOrder := make(chan elevio.ButtonEvent, 2*constant.N_FLOORS) // Hall orders sent over channel
 	ch_cabOrder := make(chan elevio.ButtonEvent, constant.N_FLOORS)    // Cab orders sent over channel
-	ch_cabServed := make(chan int)
-	ch_cabOrderArray := make(chan []int)
-	ch_dir := make(chan int)              // Channel for DIR updates
-	ch_floor := make(chan int)            // Channel for FLOOR updates
-	ch_state := make(chan constant.STATE) // Channel for STATE updates
-	ch_elevQuit := make(chan bool)
+	ch_cabServed := make(chan int, constant.N_FLOORS)
+	ch_cabOrderArray := make(chan []int, constant.N_FLOORS)
+	ch_dir := make(chan int, constant.N_FLOORS)              // Channel for DIR updates
+	ch_floor := make(chan int, constant.N_FLOORS)            // Channel for FLOOR updates
+	ch_state := make(chan constant.STATE, constant.N_FLOORS) // Channel for STATE updates
+	ch_elevQuit := make(chan bool, constant.N_FLOORS)
 	// ch_elevRecieveInternal := make(chan [][]int)
 	var cabOrders []int
 	var localMatrix [][]int
@@ -86,21 +86,22 @@ func InitElevator(ch_elevTransmit chan [][]int, ch_elevRecieve chan [][]int, ch_
 func elevatorHandler(localMatrix [][]int, ch_matrixMasterTx chan<- [][]int, ch_elevTx chan<- [][]int, ch_elevRecieve <-chan [][]int, ch_dir <-chan int, ch_floor <-chan int, ch_state <-chan constant.STATE, ch_hallOrder <-chan elevio.ButtonEvent, ch_buttonPressed chan<- bool) {
 	fmt.Println("elevatorHandler: Started")
 	for {
-		fmt.Println("elevatorHandler: Waiting on updates.")
+		// fmt.Println("elevatorHandler: Waiting on updates.")
 		select {
 		case matrixMaster := <-ch_elevRecieve: // Send new matrixMaster to elevator fsm
-			for n := 0; n < 10; n++ {
-				fmt.Println("elevatorHandler: Recieved: ", matrixMaster)
-			}
+			// fmt.Println("MatrixMaster: ", matrixMaster)
+			// for n := 0; n < 10; n++ {
+			// 	fmt.Println("elevatorHandler: Recieved: ", matrixMaster)
+			// }
 			localMatrix = confirmOrders(matrixMaster, localMatrix)
 
-			fmt.Println("elevatorHandler: Sending localMatrix to elevator...")
+			// fmt.Println("elevatorHandler: Sending localMatrix to elevator...")
 			ch_elevTx <- localMatrix
-			fmt.Println("elevatorHandler: Sendt localMatrix to elevator!")
+			// fmt.Println("elevatorHandler: Sendt localMatrix to elevator!")
 
-			fmt.Println("elevatorHandler: Sending matrixMaster to elevator...")
+			// fmt.Println("elevatorHandler: Sending matrixMaster to elevator...")
 			ch_matrixMasterTx <- matrixMaster
-			fmt.Println("elevatorHandler: Sendt matrixMaster to elevator!")
+			// fmt.Println("elevatorHandler: Sendt matrixMaster to elevator!")
 
 			// Send matrix to elevator when there is an update
 			// if reflect.DeepEqual(matrixMaster, prevMatrixMaster) == false {
@@ -110,29 +111,29 @@ func elevatorHandler(localMatrix [][]int, ch_matrixMasterTx chan<- [][]int, ch_e
 			// }
 
 		case dir := <-ch_dir: // Changed direction
-			fmt.Println("elevatorHandler: Recieved ch_dir, ", dir)
+			// fmt.Println("elevatorHandler: Recieved ch_dir, ", dir)
 			// ch_buttonPressed <- true
 			localMatrix = writeLocalMatrix(ch_elevTx, localMatrix, int(constant.UP_BUTTON), int(constant.DIR), int(dir))
-			fmt.Println("elevatorHandler: FINISHED ch_dir, ", dir)
+			// fmt.Println("elevatorHandler: FINISHED ch_dir, ", dir)
 		case floor := <-ch_floor: // Arrived at floor
-			fmt.Println("elevatorHandler: Recieved ch_floor, ", floor)
+			// fmt.Println("elevatorHandler: Recieved ch_floor, ", floor)
 			// ch_buttonPressed <- true
 			localMatrix = writeLocalMatrix(ch_elevTx, localMatrix, int(constant.UP_BUTTON), int(constant.FLOOR), int(floor))
-			fmt.Println("elevatorHandler: FINISHED ch_floor, ", floor)
+			// fmt.Println("elevatorHandler: FINISHED ch_floor, ", floor)
 		case state := <-ch_state: // Changed state
-			fmt.Println("elevatorHandler: Recieved ch_state, ", state)
+			// fmt.Println("elevatorHandler: Recieved ch_state, ", state)
 			// ch_buttonPressed <- true
 			localMatrix = writeLocalMatrix(ch_elevTx, localMatrix, int(constant.UP_BUTTON), int(constant.ELEV_STATE), int(state))
-			fmt.Println("elevatorHandler: FINISHED ch_state, ", state)
+			// fmt.Println("elevatorHandler: FINISHED ch_state, ", state)
 		case hallOrder := <-ch_hallOrder: // Recieved hall-order
-			fmt.Println("elevatorHandler: Recieved ch_hallOrder")
+			// fmt.Println("elevatorHandler: Recieved ch_hallOrder")
 			// ch_buttonPressed <- true
 			if hallOrder.Button == elevio.BT_HallUp {
 				localMatrix = writeLocalMatrix(ch_elevTx, localMatrix, int(constant.UP_BUTTON), int(constant.FIRST_FLOOR)+hallOrder.Floor, 1)
 			} else if hallOrder.Button == elevio.BT_HallDown {
 				localMatrix = writeLocalMatrix(ch_elevTx, localMatrix, int(constant.DOWN_BUTTON), int(constant.FIRST_FLOOR)+hallOrder.Floor, 1)
 			}
-			fmt.Println("elevatorHandler: FINISHED ch_hallOrder")
+			// fmt.Println("elevatorHandler: FINISHED ch_hallOrder")
 		}
 	}
 }
@@ -143,9 +144,9 @@ func transmitMatrixMasterToElevator(ch_matrixMasterTx chan<- [][]int, matrixMast
 
 func writeLocalMatrix(ch_elevTx chan<- [][]int, localMatrix [][]int, row int, col int, value int) [][]int {
 	localMatrix[row][col] = value
-	fmt.Println("writeLocalMatrix: Writing ", value, "...")
+	// fmt.Println("writeLocalMatrix: Writing ", value, "...")
 	ch_elevTx <- localMatrix // Send to master/slave module
-	fmt.Println("writeLocalMatrix: Sent ", value, "!")
+	// fmt.Println("writeLocalMatrix: Sent ", value, "!")
 	return localMatrix
 }
 
@@ -154,7 +155,7 @@ func confirmOrders(matrixMaster [][]int, localMatrix [][]int) [][]int {
 	for row := constant.UP_BUTTON; row <= constant.DOWN_BUTTON; row++ {
 		for col := int(constant.FIRST_FLOOR); col < len(matrixMaster[0]); col++ {
 			if matrixMaster[row][col] == 1 {
-				fmt.Println("DELETED UNCONFIRMED ORDER AT ELEVATOR ", row, ", FLOOR ", col)
+				// fmt.Println("DELETED UNCONFIRMED ORDER AT ELEVATOR ", row, ", FLOOR ", col)
 				localMatrix[row][col] = 0
 			}
 		}
@@ -164,7 +165,7 @@ func confirmOrders(matrixMaster [][]int, localMatrix [][]int) [][]int {
 
 /* Sends a tick to update the internal masterMatrix with the recieved one */
 func tickCounterInternal(ch_buttonPressed chan<- bool) {
-	ticker2 := time.NewTicker(500 * time.Millisecond)
+	ticker2 := time.NewTicker(constant.UPDATE_INTERNAL * time.Millisecond)
 	for range ticker2.C {
 		ch_buttonPressed <- true
 	}

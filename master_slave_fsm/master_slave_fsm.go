@@ -37,14 +37,14 @@ func InitMasterSlave() {
 	ch_updateInterval := make(chan int) // Periodic update-ticks
 	ch_peerUpdate := make(chan peers.PeerUpdate)
 	ch_peerEnable := make(chan bool)
-	ch_transmit := make(chan [][]int)          // Master matrix transmission
-	ch_recieve := make(chan [][]int)           // Master matrix reciever
-	ch_transmitSlave := make(chan [][]int)     // Slave matrix transmission
-	ch_recieveSlave := make(chan [][]int)      // Slave matrix reciever
-	ch_recieveLocal := make(chan [][]int)      // Local master matrix transfer
-	ch_recieveSlaveLocal := make(chan [][]int) // Local slave matrix transfer
-	ch_peerDisconnected := make(chan string)
-	ch_repeatedBcast := make(chan [][]int)
+	ch_transmit := make(chan [][]int, constant.N_FLOORS)          // Master matrix transmission
+	ch_recieve := make(chan [][]int, constant.N_FLOORS)           // Master matrix reciever
+	ch_transmitSlave := make(chan [][]int, constant.N_FLOORS)     // Slave matrix transmission
+	ch_recieveSlave := make(chan [][]int, constant.N_FLOORS)      // Slave matrix reciever
+	ch_recieveLocal := make(chan [][]int, constant.N_FLOORS)      // Local master matrix transfer
+	ch_recieveSlaveLocal := make(chan [][]int, constant.N_FLOORS) // Local slave matrix transfer
+	ch_peerDisconnected := make(chan string, constant.N_FLOORS)
+	ch_repeatedBcast := make(chan [][]int, 2*constant.N_FLOORS)
 
 	elevator.TakeElevatorToNearestFloor()
 
@@ -140,10 +140,10 @@ func stateMaster(matrixMaster [][]int, ch_recieve <-chan [][]int, ch_recieveSlav
 		case recievedMatrix := <-ch_recieveSlave:
 			// Merge info from recievedMatrix, append if new slave
 			matrixMaster = mergeRecievedInfo(matrixMaster, recievedMatrix)
-			// Remove served order at current floor in recievedMatrix
-			matrixMaster = checkOrderServed(matrixMaster, recievedMatrix)
 			// Insert unconfirmed orders UP/DOWN into matrixMaster
 			matrixMaster = mergeUnconfirmedOrders(matrixMaster, recievedMatrix)
+			// Remove served order at current floor in recievedMatrix
+			matrixMaster = checkOrderServed(matrixMaster, recievedMatrix)
 			// Clear orders
 			matrixMaster = clearCurrentOrders(matrixMaster)
 			// Calculate stop
@@ -169,8 +169,8 @@ func stateSlave(ch_recieve <-chan [][]int, ch_repeatedBcast chan<- [][]int, ch_r
 	// var masterMatrix [][]int		// masterMatrix not used, only checks for signal on channel
 	ch_slaveAlone := make(chan bool)
 	ch_killTimer := make(chan bool)
-	ch_sendMasterMatrix := make(chan bool) // Updates the internal matrixMaster at intervals
-	flagSlaveAlone := true                 // Assumes slave to be alone
+	ch_sendMasterMatrix := make(chan bool, 2*constant.N_FLOORS) // Updates the internal matrixMaster at intervals
+	flagSlaveAlone := true                                      // Assumes slave to be alone
 
 	go tickCounterCustom(ch_sendMasterMatrix)
 	var masterMatrix [][]int
@@ -249,9 +249,9 @@ func localOrderHandler(ch_recieveLocal <-chan [][]int, ch_transmitSlave chan<- [
 			localMatrix[constant.UP_BUTTON][constant.SLAVE_MASTER] = int(flagMasterSlave) // Ensure correct state
 			localMatrix[constant.UP_BUTTON][constant.IP] = constant.LocalIP
 			// // fmt.Println("case mottar fra ch_elevTransmit") // Ensure correct IP
-			fmt.Println("localOrderHandler: Waiting on ch_transmitSlave... ")
+			// fmt.Println("localOrderHandler: Waiting on ch_transmitSlave... ")
 			ch_transmitSlave <- localMatrix
-			fmt.Println("localOrderHandler: Sent to slave module: ", localMatrix)
+			// fmt.Println("localOrderHandler: Sent to slave module: ", localMatrix)
 			if flagMasterSlave == constant.SLAVE { // COMMENT THIS BACK IN
 				ch_recieveSlaveLocal <- localMatrix
 				// // fmt.Println("localOrderHandler: Sent localMatrix")
@@ -263,12 +263,12 @@ func localOrderHandler(ch_recieveLocal <-chan [][]int, ch_transmitSlave chan<- [
 			// fmt.Println(masterMatrix)
 
 		case <-ch_sendToElevTick:
-			fmt.Println("localOrderHandler: Attempting to send to elevator...")
+			// fmt.Println("localOrderHandler: Attempting to send to elevator...")
 			ch_elevRecieve <- prevMasterMatrix // masterMatrix TO elevator
 			// go sendToChannel(ch_elevRecieve, masterMatrix)
-			fmt.Println("localOrderHandler: Sent to elevator: ", prevMasterMatrix)
-			fmt.Println("ch_elevRecieve queue size: ", len(ch_elevRecieve))
-			fmt.Println("localOrderHandler: Iteration ", i)
+			// fmt.Println("localOrderHandler: Sent to elevator: ", prevMasterMatrix)
+			// fmt.Println("ch_elevRecieve queue size: ", len(ch_elevRecieve))
+			// fmt.Println("localOrderHandler: Iteration ", i)
 			i++
 		}
 	}
@@ -474,22 +474,28 @@ func clearCurrentOrders(matrix [][]int) [][]int {
 
 /* Order distribution algorithm */
 func calculateElevatorStops(matrix [][]int) [][]int {
+	fmt.Println("Recieved: ", matrix)
 	// // fmt.Println("calculateElevatorStops: Calculate stops")
 	var flagOrderSet bool
 	rowLength := len(matrix[constant.UP_BUTTON])
 	colLength := len(matrix)
 
 	for floor := int(constant.FIRST_FLOOR); floor < rowLength; floor++ {
+		fmt.Println("Floor: ", floor)
 		flagOrderSet = false
 		if matrix[constant.UP_BUTTON][floor] == 1 || matrix[constant.DOWN_BUTTON][floor] == 1 {
 
 			//Sjekker om jeg har en heis i etasjen
 			for elev := int(constant.FIRST_ELEV); elev < colLength; elev++ {
+				fmt.Println("Elev: ", elev)
 				// If in floor, give order if elevator is idle, stopped or has doors open
 				if matrix[elev][constant.FLOOR] == floor && (matrix[elev][constant.ELEV_STATE] == int(constant.IDLE) ||
 					matrix[elev][constant.ELEV_STATE] == int(constant.STOP) || matrix[elev][constant.ELEV_STATE] == int(constant.DOORS_OPEN)) {
 					matrix[elev][floor] = 1 // Stop here
-					flagOrderSet = true
+					// flagOrderSet = true
+					break
+				} else if matrix[elev][floor] == 1 {
+					// flagOrderSet = true
 					break
 				}
 			}
@@ -500,13 +506,13 @@ func calculateElevatorStops(matrix [][]int) [][]int {
 				for {
 					for elev := int(constant.FIRST_ELEV); elev < colLength; elev++ {
 						//Sjekker under meg, som har retning opp innenfor grense
-						if flagOrderSet == false && (matrix[elev][constant.FLOOR] == (floor - int(constant.FIRST_FLOOR) - index)) && (matrix[elev][constant.DIR] == int(elevio.MD_Up) || matrix[elev][constant.DIR] == int(elevio.MD_Stop)) && (floor-index >= int(constant.FIRST_FLOOR)) {
+						if flagOrderSet == false && (matrix[elev][constant.FLOOR] == (floor - int(constant.FIRST_FLOOR) - index)) && (matrix[elev][constant.DIR] == int(elevio.MD_Up) || matrix[elev][constant.ELEV_STATE] == int(constant.IDLE)) && (floor-index >= int(constant.FIRST_FLOOR)) {
 							matrix[elev][floor] = 1
 							flagOrderSet = true
 							break
 						}
 						//Sjekk over meg, som har retning ned og innenfor grensa
-						if flagOrderSet == false && (matrix[elev][constant.FLOOR] == (floor - int(constant.FIRST_FLOOR) + index)) && (matrix[elev][constant.DIR] == int(elevio.MD_Down) || matrix[elev][constant.DIR] == int(elevio.MD_Stop)) && (floor+index <= int(constant.FIRST_FLOOR)+constant.N_FLOORS) {
+						if flagOrderSet == false && (matrix[elev][constant.FLOOR] == (floor - int(constant.FIRST_FLOOR) + index)) && (matrix[elev][constant.DIR] == int(elevio.MD_Down) || matrix[elev][constant.ELEV_STATE] == int(constant.IDLE)) && (floor+index <= int(constant.FIRST_FLOOR)+constant.N_FLOORS) {
 							matrix[elev][floor] = 1
 							flagOrderSet = true
 							break
@@ -526,13 +532,13 @@ func calculateElevatorStops(matrix [][]int) [][]int {
 				for {
 					for elev := int(constant.FIRST_ELEV); elev < colLength; elev++ {
 						//Sjekker under meg, som har retning opp innenfor grense
-						if flagOrderSet == false && (matrix[elev][constant.FLOOR] == (floor - int(constant.FIRST_FLOOR) - index)) && (matrix[elev][constant.DIR] == int(elevio.MD_Up) || matrix[elev][constant.DIR] == int(elevio.MD_Stop)) && (floor-index >= int(constant.FIRST_FLOOR)) {
+						if flagOrderSet == false && (matrix[elev][constant.FLOOR] == (floor - int(constant.FIRST_FLOOR) - index)) && (matrix[elev][constant.DIR] == int(elevio.MD_Up) || matrix[elev][constant.ELEV_STATE] == int(constant.IDLE)) && (floor-index >= int(constant.FIRST_FLOOR)) {
 							matrix[elev][floor] = 1
 							flagOrderSet = true
 							break
 						}
-						//Sjekk over meg, som har retning ned og innenfor grensa
-						if flagOrderSet == false && (matrix[elev][constant.FLOOR] == (floor - int(constant.FIRST_FLOOR) + index)) && (matrix[elev][constant.DIR] == int(elevio.MD_Stop)) && (floor+index <= int(constant.FIRST_FLOOR)+constant.N_FLOORS) {
+						//Sjekk over meg, som har retning ned og innenfor grensa ///HEEEER!!!! Eller rening NED. Hva med state?
+						if flagOrderSet == false && (matrix[elev][constant.FLOOR] == (floor - int(constant.FIRST_FLOOR) + index)) && (matrix[elev][constant.ELEV_STATE] == int(constant.IDLE)) && (floor+index <= int(constant.FIRST_FLOOR)+constant.N_FLOORS) {
 							matrix[elev][floor] = 1
 							flagOrderSet = true
 							break
@@ -551,14 +557,14 @@ func calculateElevatorStops(matrix [][]int) [][]int {
 				index := 1
 				for {
 					for elev := int(constant.FIRST_ELEV); elev < colLength; elev++ {
-						//Sjekker under meg, som har retning opp innenfor grense
-						if flagOrderSet == false && (matrix[elev][constant.FLOOR] == (floor - int(constant.FIRST_FLOOR) - index)) && (matrix[elev][constant.DIR] == int(elevio.MD_Stop)) && (floor-index) >= int(constant.FIRST_FLOOR) {
+						//Sjekk over meg, som har retning ned og innenfor grensa
+						if flagOrderSet == false && (matrix[elev][constant.FLOOR] == (floor - int(constant.FIRST_FLOOR) + index)) && (matrix[elev][constant.DIR] == int(elevio.MD_Down) || matrix[elev][constant.ELEV_STATE] == int(constant.IDLE)) && (floor+index <= int(constant.FIRST_FLOOR)+constant.N_FLOORS) {
 							matrix[elev][floor] = 1
 							flagOrderSet = true
 							break
 						}
-						//Sjekk over meg, som har retning ned og innenfor grensa
-						if flagOrderSet == false && (matrix[elev][constant.FLOOR] == (floor - int(constant.FIRST_FLOOR) + index)) && (matrix[elev][constant.DIR] == int(elevio.MD_Down) || matrix[elev][constant.DIR] == int(elevio.MD_Stop)) && (floor+index <= int(constant.FIRST_FLOOR)+constant.N_FLOORS) {
+						//Sjekker under meg, som har retning opp innenfor grense
+						if flagOrderSet == false && (matrix[elev][constant.FLOOR] == (floor - int(constant.FIRST_FLOOR) - index)) && (matrix[elev][constant.ELEV_STATE] == int(constant.IDLE)) && (floor-index) >= int(constant.FIRST_FLOOR) {
 							matrix[elev][floor] = 1
 							flagOrderSet = true
 							break
@@ -585,6 +591,7 @@ func calculateElevatorStops(matrix [][]int) [][]int {
 		} // End order condition
 	} // End inf loop
 	// // fmt.Println("calculateElevatorStops: Orders calculated.")
+	fmt.Println("Calculated Stops: ", matrix)
 	return matrix
 } // End floor loop
 

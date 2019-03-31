@@ -1,8 +1,6 @@
 package order_handler
 
 import (
-	"fmt"
-
 	"../../constant"
 	"../../file_IO"
 	"../elevio"
@@ -110,7 +108,7 @@ func SetHallLights(matrixMaster [][]int) {
 	// }
 	for floor := int(constant.FIRST_FLOOR); floor < len(matrixMaster[constant.UP_BUTTON]); floor++ {
 		if matrixMaster[constant.UP_BUTTON][floor] == 1 {
-			fmt.Println("SetHallLights: ON UP_BUTTON ", floor-int(constant.FIRST_FLOOR))
+			// fmt.Println("SetHallLights: ON UP_BUTTON ", floor-int(constant.FIRST_FLOOR))
 			elevio.SetButtonLamp(elevio.BT_HallUp, floor-int(constant.FIRST_FLOOR), true)
 		} else {
 			// fmt.Println("SetHallLights: OFF UP_BUTTON ", floor-int(constant.FIRST_FLOOR))
@@ -119,7 +117,7 @@ func SetHallLights(matrixMaster [][]int) {
 
 		if matrixMaster[constant.DOWN_BUTTON][floor] == 1 {
 			elevio.SetButtonLamp(elevio.BT_HallDown, floor-int(constant.FIRST_FLOOR), true)
-			fmt.Println("SetHallLights: ON DOWN_BUTTON ", floor-int(constant.FIRST_FLOOR))
+			// fmt.Println("SetHallLights: ON DOWN_BUTTON ", floor-int(constant.FIRST_FLOOR))
 		} else {
 			elevio.SetButtonLamp(elevio.BT_HallDown, floor-int(constant.FIRST_FLOOR), false)
 			// fmt.Println("SetHallLights: OFF DOWN_BUTTON ", floor-int(constant.FIRST_FLOOR))
