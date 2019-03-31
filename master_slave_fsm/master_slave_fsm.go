@@ -474,20 +474,20 @@ func clearCurrentOrders(matrix [][]int) [][]int {
 
 /* Order distribution algorithm */
 func calculateElevatorStops(matrix [][]int) [][]int {
-	fmt.Println("Recieved: ", matrix)
+	// fmt.Println("Recieved: ", matrix)
 	// // fmt.Println("calculateElevatorStops: Calculate stops")
 	var flagOrderSet bool
 	rowLength := len(matrix[constant.UP_BUTTON])
 	colLength := len(matrix)
 
 	for floor := int(constant.FIRST_FLOOR); floor < rowLength; floor++ {
-		fmt.Println("Floor: ", floor)
+		// fmt.Println("Floor: ", floor)
 		flagOrderSet = false
 		if matrix[constant.UP_BUTTON][floor] == 1 || matrix[constant.DOWN_BUTTON][floor] == 1 {
 
 			//Sjekker om jeg har en heis i etasjen
 			for elev := int(constant.FIRST_ELEV); elev < colLength; elev++ {
-				fmt.Println("Elev: ", elev)
+				// fmt.Println("Elev: ", elev)
 				// If in floor, give order if elevator is idle, stopped or has doors open
 				if matrix[elev][constant.FLOOR] == floor && (matrix[elev][constant.ELEV_STATE] == int(constant.IDLE) ||
 					matrix[elev][constant.ELEV_STATE] == int(constant.STOP) || matrix[elev][constant.ELEV_STATE] == int(constant.DOORS_OPEN)) {
@@ -591,7 +591,7 @@ func calculateElevatorStops(matrix [][]int) [][]int {
 		} // End order condition
 	} // End inf loop
 	// // fmt.Println("calculateElevatorStops: Orders calculated.")
-	fmt.Println("Calculated Stops: ", matrix)
+	// fmt.Println("Calculated Stops: ", matrix)
 	return matrix
 } // End floor loop
 
