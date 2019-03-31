@@ -234,7 +234,6 @@ func slaveTimer(ch_slaveAlone chan<- bool, ch_killTimer <-chan bool) {
 elevators current state which is broadcast to master over UDP. */
 func localOrderHandler(ch_recieveLocal <-chan [][]int, ch_transmitSlave chan<- [][]int, ch_elevRecieve chan<- [][]int, ch_elevTransmit <-chan [][]int, ch_recieveSlaveLocal chan<- [][]int) {
 	localMatrix := InitLocalMatrix()
-	go elevator.Dummy()
 	ch_recieveSlaveLocal <- localMatrix
 	i := 1
 	for {
