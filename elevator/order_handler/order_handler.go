@@ -4,12 +4,9 @@ import (
 	"../../constant"
 	"../../file_IO"
 	"../elevio"
-	// "github.com/kentare/exercise-4-pipeline/elevio"
 )
 
-//
-// var localMatrix [][]int
-
+/* InitCabOrders: */
 func InitCabOrders(fromBackup []int) []int {
 	var cabOrders []int
 	for i := 0; i < constant.N_FLOORS; i++ {
@@ -19,9 +16,6 @@ func InitCabOrders(fromBackup []int) []int {
 			cabOrders = append(cabOrders, 0)
 		}
 	}
-	// for i := 0; i < constant.N_FLOORS; i++ {
-	// 	cabOrders = append(cabOrders, 0)
-	// }
 	return cabOrders
 }
 
@@ -45,20 +39,16 @@ func UpdateOrderMatrix(ch_hallOrder chan<- elevio.ButtonEvent, ch_cabOrder chan<
 	for {
 		select {
 		case order := <-ch_pollButtons:
-			// ch_buttonPressed <- true
-			// fmt.Println("UpdateOrderMatrix: Recieved ch_pollButtons")
 			if order.Button == elevio.BT_Cab {
 				ch_cabOrder <- order
-				// fmt.Println("UpdateOrderMatrix: sent over ch_cabOrder")
 			} else {
 				ch_hallOrder <- order
-				// fmt.Println("UpdateOrderMatrix: sent over ch_hallOrder")
 			}
 		}
 	}
 }
 
-//Recieves the floor that has a set cab order and sets the flag in that floor
+/* UpdateCabOrders: Set new cab orders and clear finished orders. Updates backup. */
 func UpdateCabOrders(ch_cabOrder <-chan elevio.ButtonEvent, ch_cabServed <-chan int, cabOrders []int, ch_cabOrderArray chan<- []int) {
 	var tmpBackup [][]int
 	tmpBackup = append(tmpBackup, cabOrders)
@@ -66,18 +56,16 @@ func UpdateCabOrders(ch_cabOrder <-chan elevio.ButtonEvent, ch_cabServed <-chan 
 		select {
 		case buttonEvent := <-ch_cabOrder:
 			cabOrders[buttonEvent.Floor] = 1
-			ch_cabOrderArray <- cabOrders // Send to elevator fsm
+			ch_cabOrderArray <- cabOrders // Send to elevator FSM
 			setCabLights(cabOrders)
 			tmpBackup[0] = cabOrders
 			file_IO.WriteFile(constant.BACKUP_FILENAME, tmpBackup)
-			// fmt.Println("updateCabOrders: Added cabOrder floor: ", buttonEvent.Floor)
 		case floorServed := <-ch_cabServed:
 			cabOrders[floorServed] = 0
-			ch_cabOrderArray <- cabOrders // Send to elevator fsm
+			ch_cabOrderArray <- cabOrders // Send to elevator FSM
 			setCabLights(cabOrders)
 			tmpBackup[0] = cabOrders
 			file_IO.WriteFile(constant.BACKUP_FILENAME, tmpBackup)
-			// fmt.Println("updateCabOrders: Deleted cabOrder floor: ", floorServed)
 		}
 	}
 }
@@ -93,34 +81,17 @@ func setCabLights(cabOrders []int) {
 }
 
 func SetHallLights(matrixMaster [][]int) {
-	// for index := int(constant.FIRST_FLOOR); index < len(matrixMaster[constant.UP_BUTTON]); index++ {
-	// 	if matrixMaster[constant.UP_BUTTON][index] == 1 {
-	// 		elevio.SetButtonLamp(elevio.BT_HallUp, index-int(constant.FIRST_FLOOR), true)
-	// 	} else if matrixMaster[constant.UP_BUTTON][index] == 0 {
-	// 		elevio.SetButtonLamp(elevio.BT_HallUp, index-int(constant.FIRST_FLOOR), false)
-	// 	}
-	//
-	// 	if matrixMaster[constant.DOWN_BUTTON][index] == 1 {
-	// 		elevio.SetButtonLamp(elevio.BT_HallDown, int(constant.FIRST_FLOOR)-index, true)
-	// 	} else if matrixMaster[constant.DOWN_BUTTON][index] == 0 {
-	// 		elevio.SetButtonLamp(elevio.BT_HallDown, int(constant.FIRST_FLOOR)-index, false)
-	// 	}
-	// }
 	for floor := int(constant.FIRST_FLOOR); floor < len(matrixMaster[constant.UP_BUTTON]); floor++ {
 		if matrixMaster[constant.UP_BUTTON][floor] == 1 {
-			// fmt.Println("SetHallLights: ON UP_BUTTON ", floor-int(constant.FIRST_FLOOR))
 			elevio.SetButtonLamp(elevio.BT_HallUp, floor-int(constant.FIRST_FLOOR), true)
 		} else {
-			// fmt.Println("SetHallLights: OFF UP_BUTTON ", floor-int(constant.FIRST_FLOOR))
 			elevio.SetButtonLamp(elevio.BT_HallUp, floor-int(constant.FIRST_FLOOR), false)
 		}
 
 		if matrixMaster[constant.DOWN_BUTTON][floor] == 1 {
 			elevio.SetButtonLamp(elevio.BT_HallDown, floor-int(constant.FIRST_FLOOR), true)
-			// fmt.Println("SetHallLights: ON DOWN_BUTTON ", floor-int(constant.FIRST_FLOOR))
 		} else {
 			elevio.SetButtonLamp(elevio.BT_HallDown, floor-int(constant.FIRST_FLOOR), false)
-			// fmt.Println("SetHallLights: OFF DOWN_BUTTON ", floor-int(constant.FIRST_FLOOR))
 		}
 	}
 }
