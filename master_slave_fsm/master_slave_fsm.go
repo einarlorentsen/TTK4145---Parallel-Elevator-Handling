@@ -265,6 +265,9 @@ func InitMasterMatrix(orderMatrix [][]int) [][]int {
 	return masterMatrix
 }
 
+/* *********************************************** */
+/*               HELPER FUNCTIONS                  */
+
 /* Ticks every UPDATE_INTERVAL milliseconds */
 func tickCounter(ch_updateInterval chan<- int) {
 	ticker := time.NewTicker(constant.UPDATE_INTERVAL * time.Millisecond)
@@ -272,21 +275,20 @@ func tickCounter(ch_updateInterval chan<- int) {
 		ch_updateInterval <- 1
 	}
 }
+
 func tickCounterCustom(ch_updateInterval chan<- bool) {
 	ticker := time.NewTicker(constant.UPDATE_MASTER_SLAVE * time.Millisecond)
 	for range ticker.C {
 		ch_updateInterval <- true
 	}
 }
+
 func tickCounterCustomCalcOrders(ch_updateInterval chan<- bool) {
 	ticker := time.NewTicker(constant.UPDATE_ORDER_CALCULATION * time.Millisecond)
 	for range ticker.C {
 		ch_updateInterval <- true
 	}
 }
-
-/* *********************************************** */
-/*               HELPER FUNCTIONS                  */
 
 /* Check for disconnected peers, pass ID as string over channel */
 func checkDisconnectedPeers(ch_peerUpdate <-chan peers.PeerUpdate, ch_peerDisconnected chan<- string) {
@@ -346,7 +348,6 @@ func checkOrderServed(masterMatrix [][]int, recievedMatrix [][]int) [][]int {
 	return masterMatrix
 }
 
-/* If COMMENT MORE, recieved matrix?? */
 func checkStoppedOrDoorsOpen(recievedMatrix [][]int) bool {
 	if recievedMatrix[constant.UP_BUTTON][constant.ELEV_STATE] == int(constant.STOP) {
 		return true
