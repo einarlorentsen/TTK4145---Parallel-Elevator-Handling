@@ -1,8 +1,6 @@
 package file_IO
 
 import (
-	// "io/ioutil"
-	// "bytes"
 	"bufio"
 	"fmt"
 	"os"
@@ -10,18 +8,9 @@ import (
 	"strings"
 )
 
-/* Error check */
-func check(err error) {
-	if err != nil {
-		panic(err)
-	}
-}
-
-/* For stringToNumbers, used:
-https://stackoverflow.com/questions/43599253/
-read-space-separated-integers-from-stdin-into-int-slice
-Separates a string into a vector of integers.
-*/
+/* StringToNumbers, used:
+https://stackoverflow.com/questions/43599253/read-space-separated-integers-from-stdin-into-int-slice
+Separates a string into a vector of integers.*/
 func StringToNumbers(str string) []int {
 	var arr []int
 	for _, f := range strings.Fields(str) {
@@ -33,26 +22,26 @@ func StringToNumbers(str string) []int {
 	return arr
 }
 
+/* ReadFile: Returns 2D slice of type [][]int */
 func ReadFile(filename string) [][]int {
-	matrix := make([][]int, 0)  // Init empty 2D slice
-	matrixRow := make([]int, 0) // Init empty 1D slice
-	fmt.Println("Reading file...")
-	file, err := os.Open(filename) // Read backupfile
+	matrix := make([][]int, 0)
+	matrixRow := make([]int, 0)
+	file, err := os.Open(filename)
 	if err != nil {
-		return matrix // Return empty array if no file
+		fmt.Println("No file found!")
+		return matrix
 	}
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
-
-	for scanner.Scan() { // Create 2D slice
+	for scanner.Scan() {
 		matrixRow = StringToNumbers(scanner.Text())
-		matrix = append(matrix, matrixRow) // Append row to 2D slice
+		matrix = append(matrix, matrixRow)
 	}
-	fmt.Println("Successfully read file!")
 	return matrix
 }
 
+/* WriteFile: Writes 2D slice of type [][]int to file as strings. */
 func WriteFile(filename string, matrix [][]int) {
 	file, err := os.Create(filename)
 	if err != nil {
