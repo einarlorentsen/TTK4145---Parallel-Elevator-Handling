@@ -2,7 +2,7 @@ package constant
 
 import "os"
 
-const N_FLOORS = 9
+const N_FLOORS = 4
 
 /* Enumeration STATE */
 type STATE int

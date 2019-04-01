@@ -571,7 +571,7 @@ func calculateElevatorStops(matrix [][]int) [][]int {
 						//Sjekk over meg, som har retning ned og innenfor grensa ///HEEEER!!!! Eller rening NED. Hva med state?
 						if flagOrderSet == false &&
 							(matrix[elev][constant.FLOOR] == (currentFloor + index)) &&
-							(matrix[elev][constant.ELEV_STATE] == int(constant.IDLE) || matrix[elev][constant.ELEV_STATE] == int(constant.MOVE)) &&
+							(matrix[elev][constant.ELEV_STATE] == int(constant.IDLE) || matrix[elev][constant.DIR] == int(elevio.MD_Down)) &&
 							(floor+index <= int(constant.FIRST_FLOOR)+constant.N_FLOORS) {
 							matrix = deleteOtherOrdersOnFloor(matrix, elev, floor)
 							matrix[elev][floor] = 1
@@ -603,7 +603,7 @@ func calculateElevatorStops(matrix [][]int) [][]int {
 							break labelOuterLoop3
 						}
 						//Sjekker under meg, som har retning opp innenfor grense
-						if flagOrderSet == false && (matrix[elev][constant.FLOOR] == (currentFloor - index)) && (matrix[elev][constant.ELEV_STATE] == int(constant.IDLE) || matrix[elev][constant.ELEV_STATE] == int(constant.MOVE)) && (floor-index) >= int(constant.FIRST_FLOOR) {
+						if flagOrderSet == false && (matrix[elev][constant.FLOOR] == (currentFloor - index)) && (matrix[elev][constant.ELEV_STATE] == int(constant.IDLE) || matrix[elev][constant.DIR] == int(elevio.MD_Up)) && (floor-index) >= int(constant.FIRST_FLOOR) {
 							matrix = deleteOtherOrdersOnFloor(matrix, elev, floor)
 							matrix[elev][floor] = 1
 							flagOrderSet = true
