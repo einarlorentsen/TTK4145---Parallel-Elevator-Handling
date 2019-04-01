@@ -10,12 +10,6 @@ import (
 
 /* Initialize the elevator and stop at first floor above our starting position */
 func InitFSM() {
-	for floor := 0; floor < int(constant.N_FLOORS); floor++ {
-		elevio.SetButtonLamp(elevio.BT_HallUp, floor, false)
-		elevio.SetButtonLamp(elevio.BT_HallDown, floor, false)
-		elevio.SetButtonLamp(elevio.BT_Cab, floor, false)
-	}
-	
 	currFloor := elevio.GetFloorInit()
 	if currFloor == -1 {
 		ch_floor := make(chan int)
