@@ -6,7 +6,6 @@ import (
 	"../elevio"
 )
 
-/* InitCabOrders: */
 func InitCabOrders(fromBackup []int) []int {
 	var cabOrders []int
 	for i := 0; i < constant.N_FLOORS; i++ {
@@ -80,15 +79,15 @@ func setCabLights(cabOrders []int) {
 	}
 }
 
-func SetHallLights(matrixMaster [][]int) {
-	for floor := int(constant.FIRST_FLOOR); floor < len(matrixMaster[constant.UP_BUTTON]); floor++ {
-		if matrixMaster[constant.UP_BUTTON][floor] == 1 {
+func SetHallLights(masterMatrix [][]int) {
+	for floor := int(constant.FIRST_FLOOR); floor < len(masterMatrix[constant.UP_BUTTON]); floor++ {
+		if masterMatrix[constant.UP_BUTTON][floor] == 1 {
 			elevio.SetButtonLamp(elevio.BT_HallUp, floor-int(constant.FIRST_FLOOR), true)
 		} else {
 			elevio.SetButtonLamp(elevio.BT_HallUp, floor-int(constant.FIRST_FLOOR), false)
 		}
 
-		if matrixMaster[constant.DOWN_BUTTON][floor] == 1 {
+		if masterMatrix[constant.DOWN_BUTTON][floor] == 1 {
 			elevio.SetButtonLamp(elevio.BT_HallDown, floor-int(constant.FIRST_FLOOR), true)
 		} else {
 			elevio.SetButtonLamp(elevio.BT_HallDown, floor-int(constant.FIRST_FLOOR), false)
