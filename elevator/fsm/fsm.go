@@ -21,25 +21,25 @@ func InitFSM() {
 	elevio.SetMotorDirection(elevio.MD_Stop)
 }
 
-func initEmptyMatrixMaster() [][]int {
-	matrixMaster := make([][]int, 0)
+func initEmptyMasterMatrix() [][]int {
+	masterMatrix := make([][]int, 0)
 	for i := 0; i <= 2; i++ {
-		matrixMaster = append(matrixMaster, make([]int, constant.FIRST_FLOOR+constant.N_FLOORS))
+		masterMatrix = append(masterMatrix, make([]int, constant.FIRST_FLOOR+constant.N_FLOORS))
 	}
-	return matrixMaster
+	return masterMatrix
 }
 
 /* Main fsm function for elevator */
-func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_dirTx chan<- int, ch_floorTx chan<- int, ch_stateTx chan<- constant.STATE, ch_cabServed chan<- int) {
+func ElevFSM(ch_masterMatrixRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_dirTx chan<- int, ch_floorTx chan<- int, ch_stateTx chan<- constant.STATE, ch_cabServed chan<- int) {
 
 	//Sets default values for variables used in ElevFSM
 	var lastElevDir elevio.MotorDirection
 	var newElevDir elevio.MotorDirection
 	var localState constant.STATE
-	var matrixMaster [][]int
+	var masterMatrix [][]int
 	var flagTimerActive bool = false
 
-	matrixMaster = initEmptyMatrixMaster()
+	masterMatrix = initEmptyMasterMatrix()
 	ch_floorRx := make(chan int, constant.N_FLOORS) //Sends last registred floor for elevator
 	cabOrders := make([]int, constant.N_FLOORS)
 	currentFloor := elevio.GetFloorInit()
@@ -62,10 +62,10 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 		checkIDLE:
 			for {
 				select {
-				case updateMatrixMaster := <-ch_matrixMasterRx:
-					order_handler.SetHallLights(updateMatrixMaster)
-					matrixMaster = updateMatrixMaster
-					newElevDir = checkQueue(currentFloor, lastElevDir, matrixMaster, cabOrders)
+				case updateMasterMatrix := <-ch_masterMatrixRx:
+					order_handler.SetHallLights(updateMasterMatrix)
+					masterMatrix = updateMasterMatrix
+					newElevDir = checkQueue(currentFloor, lastElevDir, masterMatrix, cabOrders)
 
 					//If new order found, set the apropriate motorDirection
 					if newElevDir == elevio.MD_Stop {
@@ -82,7 +82,7 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 					cabOrders = updateCabOrders
 
 					//If new order found, set the apropriate motorDirection
-					newElevDir = checkQueue(currentFloor, lastElevDir, matrixMaster, cabOrders)
+					newElevDir = checkQueue(currentFloor, lastElevDir, masterMatrix, cabOrders)
 					if newElevDir == elevio.MD_Stop {
 						ch_dirTx <- int(newElevDir)
 						localState = constant.DOORS_OPEN
@@ -104,16 +104,16 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 		checkMOVE:
 			for {
 				select {
-				case updateMatrixMaster := <-ch_matrixMasterRx:
-					order_handler.SetHallLights(updateMatrixMaster)
-					matrixMaster = updateMatrixMaster
+				case updateMasterMatrix := <-ch_masterMatrixRx:
+					order_handler.SetHallLights(updateMasterMatrix)
+					masterMatrix = updateMasterMatrix
 				case updateCabOrders := <-ch_cabOrderRx:
 					cabOrders = updateCabOrders
 				case floor := <-ch_floorRx:
 					currentFloor = floor
 
 					//If new floor detected: Check if elevator should stop or continue moving
-					newElevDir = checkQueue(currentFloor, lastElevDir, matrixMaster, cabOrders)
+					newElevDir = checkQueue(currentFloor, lastElevDir, masterMatrix, cabOrders)
 					elevio.SetFloorIndicator(currentFloor)
 					ch_floorTx <- floor
 
@@ -160,14 +160,14 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 
 			elevio.SetDoorOpenLamp(true)
 			cabOrders[currentFloor] = 0
-			index := IndexFinder(matrixMaster)
+			index := IndexFinder(masterMatrix)
 		checkDOORSOPEN:
 			for {
 				select {
-				case updateMatrixMaster := <-ch_matrixMasterRx:
-					order_handler.SetHallLights(updateMatrixMaster)
-					matrixMaster = updateMatrixMaster
-					index = IndexFinder(matrixMaster)
+				case updateMasterMatrix := <-ch_masterMatrixRx:
+					order_handler.SetHallLights(updateMasterMatrix)
+					masterMatrix = updateMasterMatrix
+					index = IndexFinder(masterMatrix)
 				case updateCabOrders := <-ch_cabOrderRx:
 					cabOrders = updateCabOrders
 				case <-ch_timerFinished:
@@ -178,7 +178,7 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 					break checkDOORSOPEN
 
 				default:
-					if cabOrders[currentFloor] == 1 || matrixMaster[index][currentFloor] == 1 {
+					if cabOrders[currentFloor] == 1 || masterMatrix[index][currentFloor] == 1 {
 						cabOrders[currentFloor] = 0
 					}
 				}
@@ -191,9 +191,9 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 /*------------ Help functions for initFSM and ElevFSM --------------------*/
 
 /* Initializes an empty masterMatrix with FIRST_FLOOR + N_FLOORS length */
-func checkCurrentFloor(row int, currentFloor int, matrixMaster [][]int, cabOrders []int) elevio.MotorDirection {
-	if matrixMaster[row][constant.IP] == constant.LocalIP { //Check if order in current floor
-		if matrixMaster[row][int(constant.FIRST_FLOOR)+currentFloor] == 1 || cabOrders[currentFloor] == 1 {
+func checkCurrentFloor(row int, currentFloor int, masterMatrix [][]int, cabOrders []int) elevio.MotorDirection {
+	if masterMatrix[row][constant.IP] == constant.LocalIP { //Check if order in current floor
+		if masterMatrix[row][int(constant.FIRST_FLOOR)+currentFloor] == 1 || cabOrders[currentFloor] == 1 {
 			return elevio.MD_Stop
 		}
 	}
@@ -201,25 +201,25 @@ func checkCurrentFloor(row int, currentFloor int, matrixMaster [][]int, cabOrder
 }
 
 /* Check if elevator has orders in its current floor, above itself or below itself and takes the appropriate action */
-func checkQueue(currentFloor int, lastElevDir elevio.MotorDirection, matrixMaster [][]int, cabOrders []int) elevio.MotorDirection {
+func checkQueue(currentFloor int, lastElevDir elevio.MotorDirection, masterMatrix [][]int, cabOrders []int) elevio.MotorDirection {
 	var direction elevio.MotorDirection = elevio.MD_Idle
-	for row := int(constant.FIRST_ELEV); row < len(matrixMaster); row++ {
-		if matrixMaster[row][constant.IP] == constant.LocalIP { //Check if order in current floor
-			if matrixMaster[row][int(constant.FIRST_FLOOR)+currentFloor] == 1 || cabOrders[currentFloor] == 1 {
+	for row := int(constant.FIRST_ELEV); row < len(masterMatrix); row++ {
+		if masterMatrix[row][constant.IP] == constant.LocalIP { //Check if order in current floor
+			if masterMatrix[row][int(constant.FIRST_FLOOR)+currentFloor] == 1 || cabOrders[currentFloor] == 1 {
 				return elevio.MD_Stop
 			}
 			switch {
 			case lastElevDir == elevio.MD_Up: // If last direction was UP, Check above elevator
-				direction = checkAbove(row, currentFloor, matrixMaster, cabOrders)
+				direction = checkAbove(row, currentFloor, masterMatrix, cabOrders)
 				if direction == elevio.MD_Idle {
-					direction = checkBelow(row, currentFloor, matrixMaster, cabOrders)
+					direction = checkBelow(row, currentFloor, masterMatrix, cabOrders)
 				}
 				return direction
 
 			case lastElevDir == elevio.MD_Down: // If last direction was DOWN, Check below elevator
-				direction = checkBelow(row, currentFloor, matrixMaster, cabOrders)
+				direction = checkBelow(row, currentFloor, masterMatrix, cabOrders)
 				if direction == elevio.MD_Idle {
-					direction = checkAbove(row, currentFloor, matrixMaster, cabOrders)
+					direction = checkAbove(row, currentFloor, masterMatrix, cabOrders)
 				}
 				return direction
 			default:
@@ -230,9 +230,9 @@ func checkQueue(currentFloor int, lastElevDir elevio.MotorDirection, matrixMaste
 }
 
 /* Used in checkQueue to check if there are any orders above elevator */
-func checkAbove(row int, currentFloor int, matrixMaster [][]int, cabOrders []int) elevio.MotorDirection {
-	for floor := (int(constant.FIRST_FLOOR) + currentFloor + 1); floor < len(matrixMaster[0]); floor++ {
-		if matrixMaster[row][floor] == 1 || cabOrders[floor-int(constant.FIRST_FLOOR)] == 1 {
+func checkAbove(row int, currentFloor int, masterMatrix [][]int, cabOrders []int) elevio.MotorDirection {
+	for floor := (int(constant.FIRST_FLOOR) + currentFloor + 1); floor < len(masterMatrix[0]); floor++ {
+		if masterMatrix[row][floor] == 1 || cabOrders[floor-int(constant.FIRST_FLOOR)] == 1 {
 			return elevio.MD_Up
 		}
 	}
@@ -240,9 +240,9 @@ func checkAbove(row int, currentFloor int, matrixMaster [][]int, cabOrders []int
 }
 
 /* Used in checkQueue to check if there are any orders below elevator */
-func checkBelow(row int, currentFloor int, matrixMaster [][]int, cabOrders []int) elevio.MotorDirection {
+func checkBelow(row int, currentFloor int, masterMatrix [][]int, cabOrders []int) elevio.MotorDirection {
 	for floor := (int(constant.FIRST_FLOOR) + currentFloor - 1); floor >= int(constant.FIRST_FLOOR); floor-- {
-		if matrixMaster[row][floor] == 1 || cabOrders[floor-int(constant.FIRST_FLOOR)] == 1 {
+		if masterMatrix[row][floor] == 1 || cabOrders[floor-int(constant.FIRST_FLOOR)] == 1 {
 			return elevio.MD_Down
 		}
 	}
@@ -265,11 +265,11 @@ func doorTimer(timerKill <-chan bool, timerFinished chan<- bool) {
 	}
 }
 
-/* Looks through matrixMaster and finds at which row the elevators ID is located */
-func IndexFinder(matrixMaster [][]int) int {
-	rows := len(matrixMaster)
+/* Looks through masterMatrix and finds at which row the elevators ID is located */
+func IndexFinder(masterMatrix [][]int) int {
+	rows := len(masterMatrix)
 	for index := 0; index < rows; index++ {
-		if matrixMaster[index][constant.IP] == constant.LocalIP {
+		if masterMatrix[index][constant.IP] == constant.LocalIP {
 			return index
 		}
 	}
