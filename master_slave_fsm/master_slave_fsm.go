@@ -42,11 +42,11 @@ func InitMasterSlave() {
 	ch_recieveSlaveLocal := make(chan [][]int, constant.N_FLOORS) // Local slave matrix transfer
 	ch_peerDisconnected := make(chan string, constant.N_FLOORS)
 	ch_repeatedBcast := make(chan [][]int, 2*constant.N_FLOORS)
-	ch_buttonPressed := make(chan bool)
+	ch_updateOrder := make(chan bool)
 
 	elevator.TakeElevatorToNearestFloor()
 
-	go elevator.InitElevator(ch_elevTransmit, ch_elevRecieve, ch_buttonPressed)
+	go elevator.InitElevator(ch_elevTransmit, ch_elevRecieve, ch_updateOrder)
 
 	go localOrderHandler(ch_recieveLocal, ch_transmitSlave, ch_elevRecieve, ch_elevTransmit, ch_recieveSlaveLocal)
 
@@ -63,30 +63,30 @@ func InitMasterSlave() {
 	go tickCounter(ch_updateInterval)
 	go checkDisconnectedPeers(ch_peerUpdate, ch_peerDisconnected)
 
-	stateChange(constant.SLAVE, ch_recieve, ch_recieveSlave, ch_peerDisconnected, ch_repeatedBcast, ch_recieveLocal, ch_recieveSlaveLocal, ch_buttonPressed)
+	stateChange(constant.SLAVE, ch_recieve, ch_recieveSlave, ch_peerDisconnected, ch_repeatedBcast, ch_recieveLocal, ch_recieveSlaveLocal, ch_updateOrder)
 }
 
 /* Continously swapping states */
-func stateChange(currentState constant.STATE, ch_recieve <-chan [][]int, ch_recieveSlave <-chan [][]int, ch_peerDisconnected <-chan string, ch_repeatedBcast chan<- [][]int, ch_recieveLocal chan<- [][]int, ch_recieveSlaveLocal <-chan [][]int, ch_buttonPressed <-chan bool) {
+func stateChange(currentState constant.STATE, ch_recieve <-chan [][]int, ch_recieveSlave <-chan [][]int, ch_peerDisconnected <-chan string, ch_repeatedBcast chan<- [][]int, ch_recieveLocal chan<- [][]int, ch_recieveSlaveLocal <-chan [][]int, ch_updateOrder <-chan bool) {
 	var orderMatrix [][]int
 	for {
 		switch currentState {
 		case constant.MASTER:
-			currentState = stateMaster(orderMatrix, ch_recieve, ch_recieveSlave, ch_peerDisconnected, ch_repeatedBcast, ch_recieveLocal, ch_buttonPressed)
+			currentState = stateMaster(orderMatrix, ch_recieve, ch_recieveSlave, ch_peerDisconnected, ch_repeatedBcast, ch_recieveLocal, ch_updateOrder)
 		case constant.SLAVE:
-			currentState, orderMatrix = stateSlave(ch_recieve, ch_repeatedBcast, ch_recieveLocal, ch_recieveSlaveLocal, ch_buttonPressed)
+			currentState, orderMatrix = stateSlave(ch_recieve, ch_repeatedBcast, ch_recieveLocal, ch_recieveSlaveLocal, ch_updateOrder)
 		}
 	}
 }
 
-func stateMaster(orderMatrix [][]int, ch_recieve <-chan [][]int, ch_recieveSlave <-chan [][]int, ch_peerDisconnected <-chan string, ch_repeatedBcast chan<- [][]int, ch_recieveLocal chan<- [][]int, ch_buttonPressed <-chan bool) constant.STATE {
+func stateMaster(orderMatrix [][]int, ch_recieve <-chan [][]int, ch_recieveSlave <-chan [][]int, ch_peerDisconnected <-chan string, ch_repeatedBcast chan<- [][]int, ch_recieveLocal chan<- [][]int, ch_updateOrder <-chan bool) constant.STATE {
 	flagMasterSlave = constant.MASTER
 	ch_sendMasterMatrix := make(chan bool)
 	ch_calcElevatorStops := make(chan bool)
 	flagOrderMatrixSet := false
 
-	go tickCounterCustom(ch_sendMasterMatrix)
-	go tickCounterCustomCalcOrders(ch_calcElevatorStops)
+	go tickCounterMasterSlave(ch_sendMasterMatrix)
+	go tickCounterCalcOrders(ch_calcElevatorStops)
 
 	masterMatrix := InitMasterMatrix(orderMatrix)
 	ch_repeatedBcast <- masterMatrix
@@ -117,20 +117,20 @@ func stateMaster(orderMatrix [][]int, ch_recieve <-chan [][]int, ch_recieveSlave
 			masterMatrix = clearCurrentOrders(masterMatrix)
 			masterMatrix = calculateElevatorStops(masterMatrix)
 		case <-ch_sendMasterMatrix:
-			sendMasterMatrixToElevator(ch_buttonPressed, ch_recieveLocal, masterMatrix)
+			sendMasterMatrixToElevator(ch_updateOrder, ch_recieveLocal, masterMatrix)
 			ch_repeatedBcast <- masterMatrix
 		default:
 		}
 	}
 }
 
-func sendMasterMatrixToElevator(ch_buttonPressed <-chan bool, ch_recieveLocal chan<- [][]int, masterMatrix [][]int) {
-	<-ch_buttonPressed
+func sendMasterMatrixToElevator(ch_updateOrder <-chan bool, ch_recieveLocal chan<- [][]int, masterMatrix [][]int) {
+	<-ch_updateOrder
 	ch_recieveLocal <- masterMatrix
 }
 
 /* Slave state, checks for alive masters. Transitions if no masters on UDP. */
-func stateSlave(ch_recieve <-chan [][]int, ch_repeatedBcast chan<- [][]int, ch_recieveLocal chan<- [][]int, ch_recieveSlaveLocal <-chan [][]int, ch_buttonPressed <-chan bool) (constant.STATE, [][]int) {
+func stateSlave(ch_recieve <-chan [][]int, ch_repeatedBcast chan<- [][]int, ch_recieveLocal chan<- [][]int, ch_recieveSlaveLocal <-chan [][]int, ch_updateOrder <-chan bool) (constant.STATE, [][]int) {
 	ch_slaveAlone := make(chan bool)
 	ch_killTimer := make(chan bool)
 	ch_sendMasterMatrix := make(chan bool, 2*constant.N_FLOORS)
@@ -139,7 +139,7 @@ func stateSlave(ch_recieve <-chan [][]int, ch_repeatedBcast chan<- [][]int, ch_r
 	for i := 0; i <= 1; i++ {
 		orderMatrix = append(orderMatrix, make([]int, 5+constant.N_FLOORS))
 	}
-	go tickCounterCustom(ch_sendMasterMatrix)
+	go tickCounterMasterSlave(ch_sendMasterMatrix)
 	var masterMatrix [][]int
 
 	for {
@@ -199,7 +199,7 @@ func slaveTimer(ch_slaveAlone chan<- bool, ch_killTimer <-chan bool) {
 func localOrderHandler(ch_recieveLocal <-chan [][]int, ch_transmitSlave chan<- [][]int, ch_elevRecieve chan<- [][]int, ch_elevTransmit <-chan [][]int, ch_recieveSlaveLocal chan<- [][]int) {
 	localMatrix := InitLocalMatrix()
 	ch_sendToElevTick := make(chan bool)
-	go tickCounterCustom(ch_sendToElevTick)
+	go tickCounterMasterSlave(ch_sendToElevTick)
 	ch_recieveSlaveLocal <- localMatrix
 	prevMasterMatrix := <-ch_recieveLocal
 	for {
@@ -276,14 +276,14 @@ func tickCounter(ch_updateInterval chan<- int) {
 	}
 }
 
-func tickCounterCustom(ch_updateInterval chan<- bool) {
+func tickCounterMasterSlave(ch_updateInterval chan<- bool) {
 	ticker := time.NewTicker(constant.UPDATE_MASTER_SLAVE * time.Millisecond)
 	for range ticker.C {
 		ch_updateInterval <- true
 	}
 }
 
-func tickCounterCustomCalcOrders(ch_updateInterval chan<- bool) {
+func tickCounterCalcOrders(ch_updateInterval chan<- bool) {
 	ticker := time.NewTicker(constant.UPDATE_ORDER_CALCULATION * time.Millisecond)
 	for range ticker.C {
 		ch_updateInterval <- true
