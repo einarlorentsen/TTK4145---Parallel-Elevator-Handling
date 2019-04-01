@@ -1,3 +1,7 @@
+/* THIS MODULE IS FROM TTK4145's GITHUB.
+    https://github.com/TTK4145/Network-go */
+
+
 // CHANGE FILETYPE TO .go FOR READABILITY
 
 package main
