@@ -1,7 +1,6 @@
 package fsm
 
 import (
-	"fmt"
 	"time"
 
 	"../../constant"
@@ -51,7 +50,7 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 	for {
 		switch localState {
 		case constant.IDLE:
-			fmt.Println("ElevFSM: IDLE")
+			// fmt.Println("ElevFSM: IDLE")
 			elevio.SetMotorDirection(elevio.MD_Stop)
 			// go asyncIntTransmit(ch_dirTx, int(elevio.MD_Stop))
 			// go asyncStateTransmit(ch_stateTx, localState)
@@ -120,10 +119,10 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 				// 	break checkIDLE // Break the for-select loop
 				// }
 			}
-			fmt.Println("ElevFSM: IDLE FINISHED")
+			// fmt.Println("ElevFSM: IDLE FINISHED")
 
 		case constant.MOVE:
-			fmt.Println("ElevFSM: MOVE")
+			// fmt.Println("ElevFSM: MOVE")
 			elevio.SetMotorDirection(newElevDir)
 			ch_stateTx <- localState
 			// fmt.Println("SENDS localState to ch_stateTx")
@@ -178,21 +177,21 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 					break checkMOVE
 				}
 			}
-			fmt.Println("ElevFSM: MOVE FINISHED")
+			// fmt.Println("ElevFSM: MOVE FINISHED")
 			break
 
 		case constant.STOP:
-			fmt.Println("ElevFSM: STOP")
+			// fmt.Println("ElevFSM: STOP")
 			newElevDir = elevio.MD_Stop
 			ch_stateTx <- localState
 			ch_dirTx <- int(newElevDir)
 			elevio.SetMotorDirection(elevio.MD_Stop)
 			localState = constant.DOORS_OPEN
-			fmt.Println("ElevFSM: STOP FINISHED")
+			// fmt.Println("ElevFSM: STOP FINISHED")
 			break
 
 		case constant.DOORS_OPEN:
-			fmt.Println("ElevFSM: DOORS_OPEN")
+			// fmt.Println("ElevFSM: DOORS_OPEN")
 			ch_timerKill := make(chan bool)
 			ch_timerFinished := make(chan bool)
 			if flagTimerActive == false {
@@ -249,7 +248,7 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 					// }
 				}
 			} // End DOORS_OPEN
-			fmt.Println("ElevFSM: DOORS_OPEN FINISHED")
+			// fmt.Println("ElevFSM: DOORS_OPEN FINISHED")
 			break
 		}
 	}

@@ -18,6 +18,7 @@ import (
 
 var flagDisconnectedPeer bool = false
 var flagMasterSlave constant.STATE
+var previousMaster int = -1
 
 func ConnectToElevator(elevatorAddress string) {
 	fmt.Println("Elevator address: ", elevatorAddress)
@@ -26,7 +27,7 @@ func ConnectToElevator(elevatorAddress string) {
 
 func InitMasterSlave() {
 	// fmt.Println("Initializing Master/Slave state machine...")
-	var matrixMaster [][]int
+	// var matrixMaster [][]int
 
 	// fullLocalIP, _ := LocalIP.LocalIP() // CURRENTLY PASSED TO PEERS TRANSMITTER. UNSURE
 	// fmt.Println("This machines LocalIP-ID is: ", LocalIP)
@@ -76,7 +77,7 @@ func InitMasterSlave() {
 	go checkDisconnectedPeers(ch_peerUpdate, ch_peerDisconnected)
 
 	// fmt.Println("Master/Slave state machine initialized.")
-	stateChange(matrixMaster, constant.SLAVE, ch_recieve, ch_recieveSlave, ch_peerDisconnected, ch_repeatedBcast, ch_recieveLocal, ch_recieveSlaveLocal, ch_buttonPressed)
+	stateChange(constant.SLAVE, ch_recieve, ch_recieveSlave, ch_peerDisconnected, ch_repeatedBcast, ch_recieveLocal, ch_recieveSlaveLocal, ch_buttonPressed)
 }
 
 // func elevListen(ch_elevTransmit <-chan [][]int, ch_elevRecieve <-chan [][]int) {
@@ -91,13 +92,14 @@ func InitMasterSlave() {
 // }
 
 /* Continously swapping states */
-func stateChange(matrixMaster [][]int, currentState constant.STATE, ch_recieve <-chan [][]int, ch_recieveSlave <-chan [][]int, ch_peerDisconnected <-chan string, ch_repeatedBcast chan<- [][]int, ch_recieveLocal chan<- [][]int, ch_recieveSlaveLocal <-chan [][]int, ch_buttonPressed <-chan bool) {
+func stateChange(currentState constant.STATE, ch_recieve <-chan [][]int, ch_recieveSlave <-chan [][]int, ch_peerDisconnected <-chan string, ch_repeatedBcast chan<- [][]int, ch_recieveLocal chan<- [][]int, ch_recieveSlaveLocal <-chan [][]int, ch_buttonPressed <-chan bool) {
+	var orderMatrix [][]int
 	for {
 		switch currentState {
 		case constant.MASTER:
-			currentState = stateMaster(matrixMaster, ch_recieve, ch_recieveSlave, ch_peerDisconnected, ch_repeatedBcast, ch_recieveLocal, ch_buttonPressed)
+			currentState = stateMaster(orderMatrix, ch_recieve, ch_recieveSlave, ch_peerDisconnected, ch_repeatedBcast, ch_recieveLocal, ch_buttonPressed)
 		case constant.SLAVE:
-			currentState = stateSlave(ch_recieve, ch_repeatedBcast, ch_recieveLocal, ch_recieveSlaveLocal, ch_buttonPressed)
+			currentState, orderMatrix = stateSlave(ch_recieve, ch_repeatedBcast, ch_recieveLocal, ch_recieveSlaveLocal, ch_buttonPressed)
 		}
 	}
 }
@@ -111,24 +113,41 @@ func stateChange(matrixMaster [][]int, currentState constant.STATE, ch_recieve <
 /* ELEV N    |    |     |       |            |              |       | .. |        | */
 /* Matrix indexing: [ROW][COL] */
 
-func stateMaster(matrixMaster [][]int, ch_recieve <-chan [][]int, ch_recieveSlave <-chan [][]int, ch_peerDisconnected <-chan string, ch_repeatedBcast chan<- [][]int, ch_recieveLocal chan<- [][]int, ch_buttonPressed <-chan bool) constant.STATE {
+func stateMaster(orderMatrix [][]int, ch_recieve <-chan [][]int, ch_recieveSlave <-chan [][]int, ch_peerDisconnected <-chan string, ch_repeatedBcast chan<- [][]int, ch_recieveLocal chan<- [][]int, ch_buttonPressed <-chan bool) constant.STATE {
 	flagMasterSlave = constant.MASTER
 	ch_sendMatrixMaster := make(chan bool) // Updates the internal matrixMaster at intervals
 	ch_calcElevatorStops := make(chan bool)
+	flagOrderMatrixSet := false
 	// fmt.Println("Masterstate activated.")
 	go tickCounterCustom(ch_sendMatrixMaster)
 	go tickCounterCustomCalcOrders(ch_calcElevatorStops)
 
-	// If matrixMaster is empty, generate masterMatrix for 1 elevator
-	if matrixMaster == nil {
-		matrixMaster = InitMatrixMaster()
-	}
+	matrixMaster := InitMatrixMaster(orderMatrix)
 	ch_repeatedBcast <- matrixMaster // Start the correct masterMatrix UDP broadcast
+
+	fmt.Print("After statechange, masterMatrix = ", matrixMaster)
 
 	for {
 		select {
 		case newMatrixMaster := <-ch_recieve:
+			// fmt.Println("OBS: Recieved a new Matrix!! = ", newMatrixMaster)
 			// // fmt.Println("stateMaster: Recieved masterMatrix")
+			for elev := int(constant.FIRST_ELEV); elev < len(newMatrixMaster); elev++ {
+				if newMatrixMaster[elev][constant.IP] == previousMaster {
+					fmt.Println("Prev master: ", previousMaster)
+					// currFloor := elev - int(constant.FIRST_ELEV)
+					// fmt.Println("CurrFloor: ", currFloor)
+					newMatrixMaster = append(newMatrixMaster[:elev], newMatrixMaster[elev+1:]...)
+					if flagOrderMatrixSet == false {
+						fmt.Println("Sets new matrixMaster")
+						matrixMaster = newMatrixMaster
+						flagOrderMatrixSet = true
+					}
+
+					// previousMaster = -1
+					// fmt.Println("Deleted prev master: ", newMatrixMaster)
+				}
+			}
 			if checkMaster(newMatrixMaster) == constant.SLAVE {
 				// fmt.Println("stateMaster: checkMaster returned SLAVE")
 				return constant.SLAVE // Change to slave
@@ -148,14 +167,15 @@ func stateMaster(matrixMaster [][]int, ch_recieve <-chan [][]int, ch_recieveSlav
 			matrixMaster = checkOrderServed(matrixMaster, recievedMatrix)
 		case <-ch_calcElevatorStops:
 			// Clear orders
-			fmt.Println("matrixMaster before calculateElevatorStops: ", matrixMaster)
+			// fmt.Println("matrixMaster before calculateElevatorStops: ", matrixMaster)
 			matrixMaster = clearCurrentOrders(matrixMaster)
 			// Calculate stop
 			matrixMaster = calculateElevatorStops(matrixMaster)
-			fmt.Println("----- matrixMaster after calculateElevatorStops: ", matrixMaster)
+			fmt.Println("NEW MATRIXMASTER = ", matrixMaster)
+			// fmt.Println("----- matrixMaster after calculateElevatorStops: ", matrixMaster)
 		case <-ch_sendMatrixMaster:
 			// Broadcast the whole
-			go sendMatrixMasterToElevator(ch_buttonPressed, ch_recieveLocal, matrixMaster)
+			sendMatrixMasterToElevator(ch_buttonPressed, ch_recieveLocal, matrixMaster)
 			// // fmt.Println("MASTER: Sent on ch_recieveLocal")
 			ch_repeatedBcast <- matrixMaster
 			// // fmt.Println("MASTER: Sent on ch_repeatBcast")
@@ -170,17 +190,22 @@ func sendMatrixMasterToElevator(ch_buttonPressed <-chan bool, ch_recieveLocal ch
 }
 
 /* Slave state, checks for alive masters. Transitions if no masters on UDP. */
-func stateSlave(ch_recieve <-chan [][]int, ch_repeatedBcast chan<- [][]int, ch_recieveLocal chan<- [][]int, ch_recieveSlaveLocal <-chan [][]int, ch_buttonPressed <-chan bool) constant.STATE {
+func stateSlave(ch_recieve <-chan [][]int, ch_repeatedBcast chan<- [][]int, ch_recieveLocal chan<- [][]int, ch_recieveSlaveLocal <-chan [][]int, ch_buttonPressed <-chan bool) (constant.STATE, [][]int) {
 	// var masterMatrix [][]int		// masterMatrix not used, only checks for signal on channel
 	ch_slaveAlone := make(chan bool)
 	ch_killTimer := make(chan bool)
 	ch_sendMasterMatrix := make(chan bool, 2*constant.N_FLOORS) // Updates the internal matrixMaster at intervals
 	flagSlaveAlone := true                                      // Assumes slave to be alone
+	var orderMatrix [][]int
+	for i := 0; i <= 1; i++ {
+		orderMatrix = append(orderMatrix, make([]int, 5+constant.N_FLOORS))
+	}
 
 	go tickCounterCustom(ch_sendMasterMatrix)
 	var masterMatrix [][]int
 	// fmt.Println("Slave-state initialized")
 	// USE ch_repeatedBcast <- matrixMaster
+	fmt.Println("Trancitioning to SLAVE!!!")
 
 	for {
 		select {
@@ -194,6 +219,13 @@ func stateSlave(ch_recieve <-chan [][]int, ch_repeatedBcast chan<- [][]int, ch_r
 			// fmt.Println("Slave iteration: ", i)
 			// fmt.Println("stateSlave: ID = ", LocalIP)
 			// fmt.Println("stateSlave: masterMatrix recieved: ", masterMatrix)
+			orderMatrix[0] = masterMatrix[0]
+			orderMatrix[1] = masterMatrix[1]
+			for elev := int(constant.FIRST_ELEV); elev < len(masterMatrix); elev++ {
+				if masterMatrix[elev][constant.SLAVE_MASTER] == int(constant.MASTER) {
+					previousMaster = masterMatrix[elev][constant.IP]
+				}
+			}
 			if flagSlaveAlone == false {
 				// fmt.Println("if flagSlaveAlone clause triggered")
 				ch_killTimer <- true  // Kill time
@@ -208,7 +240,7 @@ func stateSlave(ch_recieve <-chan [][]int, ch_repeatedBcast chan<- [][]int, ch_r
 			// fmt.Println("stateSlave: masterMatrix sent on ch_recieveLocal")
 		case <-ch_slaveAlone:
 			// fmt.Println("SLAVE ID ", LocalIP, "is transitioning to MASTER")
-			return constant.MASTER
+			return constant.MASTER, orderMatrix
 		default:
 			if flagSlaveAlone == true {
 				go slaveTimer(ch_slaveAlone, ch_killTimer)
@@ -312,10 +344,14 @@ func checkMaster(matrix [][]int) constant.STATE {
 	return constant.MASTER //
 }
 
-func InitMatrixMaster() [][]int {
+func InitMatrixMaster(orderMatrix [][]int) [][]int {
 	matrixMaster := make([][]int, 0)
 	for i := 0; i <= 2; i++ { // For 1 elevator, master is assumed alone
 		matrixMaster = append(matrixMaster, make([]int, 5+constant.N_FLOORS))
+	}
+	if len(orderMatrix) == 2 {
+		matrixMaster[0] = orderMatrix[0]
+		matrixMaster[1] = orderMatrix[1]
 	}
 	matrixMaster[constant.FIRST_ELEV][constant.IP] = constant.LocalIP
 	matrixMaster[constant.FIRST_ELEV][constant.DIR] = int(elevio.MD_Stop)
