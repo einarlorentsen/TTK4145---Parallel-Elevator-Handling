@@ -14,10 +14,6 @@ import (
 /* Index of the elevator in masterMatrix */
 var elevIndex int
 
-func backupSendToElevator(ch_cabOrderArray chan<- []int, cabOrders []int) {
-	ch_cabOrderArray <- cabOrders
-}
-
 func TakeElevatorToNearestFloor() {
 	fsm.InitFSM()
 }
@@ -85,6 +81,10 @@ func elevatorHandler(localMatrix [][]int, ch_masterMatrixTx chan<- [][]int, ch_e
 			}
 		}
 	}
+}
+
+func backupSendToElevator(ch_cabOrderArray chan<- []int, cabOrders []int) {
+	ch_cabOrderArray <- cabOrders
 }
 
 func transmitMasterMatrixToElevator(ch_masterMatrixTx chan<- [][]int, masterMatrix [][]int) {
