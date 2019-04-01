@@ -123,7 +123,7 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 			fmt.Println("ElevFSM: IDLE FINISHED")
 
 		case constant.MOVE:
-			// fmt.Println("ElevFSM: MOVE")
+			fmt.Println("ElevFSM: MOVE")
 			elevio.SetMotorDirection(newElevDir)
 			ch_stateTx <- localState
 			// fmt.Println("SENDS localState to ch_stateTx")
@@ -178,21 +178,21 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 					break checkMOVE
 				}
 			}
-			// fmt.Println("ElevFSM: MOVE FINISHED")
+			fmt.Println("ElevFSM: MOVE FINISHED")
 			break
 
 		case constant.STOP:
-			// fmt.Println("ElevFSM: STOP")
+			fmt.Println("ElevFSM: STOP")
 			newElevDir = elevio.MD_Stop
 			ch_stateTx <- localState
 			ch_dirTx <- int(newElevDir)
 			elevio.SetMotorDirection(elevio.MD_Stop)
 			localState = constant.DOORS_OPEN
-			// fmt.Println("ElevFSM: STOP FINISHED")
+			fmt.Println("ElevFSM: STOP FINISHED")
 			break
 
 		case constant.DOORS_OPEN:
-			// fmt.Println("ElevFSM: DOORS_OPEN")
+			fmt.Println("ElevFSM: DOORS_OPEN")
 			ch_timerKill := make(chan bool)
 			ch_timerFinished := make(chan bool)
 			if flagTimerActive == false {
@@ -249,7 +249,7 @@ func ElevFSM(ch_matrixMasterRx <-chan [][]int, ch_cabOrderRx <-chan []int, ch_di
 					// }
 				}
 			} // End DOORS_OPEN
-			// fmt.Println("ElevFSM: DOORS_OPEN FINISHED")
+			fmt.Println("ElevFSM: DOORS_OPEN FINISHED")
 			break
 		}
 	}
@@ -284,7 +284,7 @@ func checkQueue(currentFloor int, lastElevDir elevio.MotorDirection, matrixMaste
 			// fmt.Println("matrixMaster ID-field: ", matrixMaster[row][constant.IP], " at row: ", row)
 			// fmt.Println("Row: ", matrixMaster[row])
 			if matrixMaster[row][int(constant.FIRST_FLOOR)+currentFloor] == 1 || cabOrders[currentFloor] == 1 {
-				printDir(elevio.MD_Stop, "MD_Stop")
+				// printDir(elevio.MD_Stop, "MD_Stop")
 				return elevio.MD_Stop
 			}
 			switch {
@@ -293,7 +293,7 @@ func checkQueue(currentFloor int, lastElevDir elevio.MotorDirection, matrixMaste
 				if direction == elevio.MD_Idle {
 					direction = checkBelow(row, currentFloor, matrixMaster, cabOrders)
 				}
-				printDir(direction, "lastElevDir MD_Up")
+				// printDir(direction, "lastElevDir MD_Up")
 				return direction
 
 			case lastElevDir == elevio.MD_Down: // Check below elevator
@@ -301,7 +301,7 @@ func checkQueue(currentFloor int, lastElevDir elevio.MotorDirection, matrixMaste
 				if direction == elevio.MD_Idle {
 					direction = checkAbove(row, currentFloor, matrixMaster, cabOrders)
 				}
-				printDir(direction, "lastElevDir MD_Down")
+				// printDir(direction, "lastElevDir MD_Down")
 				return direction
 			default:
 				// Nothing
@@ -309,7 +309,7 @@ func checkQueue(currentFloor int, lastElevDir elevio.MotorDirection, matrixMaste
 		}
 	}
 	// fmt.Println("checkQueue: dir: ", direction)
-	printDir(direction, "Default case")
+	// printDir(direction, "Default case")
 	return direction
 }
 func printDir(dir elevio.MotorDirection, str string) {

@@ -148,10 +148,11 @@ func stateMaster(matrixMaster [][]int, ch_recieve <-chan [][]int, ch_recieveSlav
 			matrixMaster = checkOrderServed(matrixMaster, recievedMatrix)
 		case <-ch_calcElevatorStops:
 			// Clear orders
+			fmt.Println("matrixMaster before calculateElevatorStops: ", matrixMaster)
 			matrixMaster = clearCurrentOrders(matrixMaster)
 			// Calculate stop
 			matrixMaster = calculateElevatorStops(matrixMaster)
-			fmt.Println("matrixMaster: ", matrixMaster)
+			fmt.Println("----- matrixMaster after calculateElevatorStops: ", matrixMaster)
 		case <-ch_sendMatrixMaster:
 			// Broadcast the whole
 			go sendMatrixMasterToElevator(ch_buttonPressed, ch_recieveLocal, matrixMaster)
@@ -570,7 +571,7 @@ func calculateElevatorStops(matrix [][]int) [][]int {
 						//Sjekk over meg, som har retning ned og innenfor grensa ///HEEEER!!!! Eller rening NED. Hva med state?
 						if flagOrderSet == false &&
 							(matrix[elev][constant.FLOOR] == (currentFloor + index)) &&
-							(matrix[elev][constant.ELEV_STATE] == int(constant.IDLE)) &&
+							(matrix[elev][constant.ELEV_STATE] == int(constant.IDLE) || matrix[elev][constant.ELEV_STATE] == int(constant.MOVE)) &&
 							(floor+index <= int(constant.FIRST_FLOOR)+constant.N_FLOORS) {
 							matrix = deleteOtherOrdersOnFloor(matrix, elev, floor)
 							matrix[elev][floor] = 1
@@ -602,7 +603,7 @@ func calculateElevatorStops(matrix [][]int) [][]int {
 							break labelOuterLoop3
 						}
 						//Sjekker under meg, som har retning opp innenfor grense
-						if flagOrderSet == false && (matrix[elev][constant.FLOOR] == (currentFloor - index)) && (matrix[elev][constant.ELEV_STATE] == int(constant.IDLE)) && (floor-index) >= int(constant.FIRST_FLOOR) {
+						if flagOrderSet == false && (matrix[elev][constant.FLOOR] == (currentFloor - index)) && (matrix[elev][constant.ELEV_STATE] == int(constant.IDLE) || matrix[elev][constant.ELEV_STATE] == int(constant.MOVE)) && (floor-index) >= int(constant.FIRST_FLOOR) {
 							matrix = deleteOtherOrdersOnFloor(matrix, elev, floor)
 							matrix[elev][floor] = 1
 							flagOrderSet = true
